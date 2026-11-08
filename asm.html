@@ -1,0 +1,856 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ASM · RAX register simulator</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--fg:#1d2330;--mut:#6b7280;--acc:#2563eb;--err:#b91c1c;--ok:#15803d;--bd:#e5e7eb}
+*{box-sizing:border-box}body{margin:0;font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--fg)}
+main{max-width:1080px;margin:0 auto;padding:16px}
+.topbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px}
+.nav{display:flex;flex-wrap:wrap;gap:6px;margin:0;font-size:.85rem;flex:1 1 auto}.nav a{color:var(--acc);text-decoration:none;padding:4px 12px;border:1px solid var(--bd);border-radius:999px;background:#fff}.nav a.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.langpick{display:flex;align-items:center;gap:8px;color:var(--mut);font-size:.85rem;margin-left:auto}
+.langpick select{width:auto;min-width:11rem;padding:6px 10px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px;min-width:0;margin-bottom:16px}
+h2{margin:0 0 12px;font-size:1.05rem}label{display:block;font-size:.85rem;color:var(--mut);margin:10px 0 4px}
+input,textarea,select{width:100%;padding:10px;border:1px solid var(--bd);border-radius:8px;font:inherit;background:#fff}
+textarea{min-height:110px;resize:vertical}button{margin-top:12px;background:var(--acc);color:#fff;border:0;border-radius:8px;padding:10px 16px;font:inherit;cursor:pointer;width:100%}
+button:disabled{opacity:.5;cursor:default}.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.row input,.row select{flex:1 1 160px}.row button{width:auto;margin-top:0;flex:0 0 auto}
+.note{font-size:.8rem;color:var(--mut);margin-top:6px}.msg{padding:10px 12px;border-radius:8px;margin-top:10px;font-size:.9rem;white-space:pre-wrap}
+.msg.err{background:#fef2f2;color:var(--err);border:1px solid #fecaca}.msg.ok{background:#f0fdf4;color:var(--ok);border:1px solid #bbf7d0}
+ul{list-style:none;padding:0;margin:12px 0 0}li{border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+.meta{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:.8rem;color:var(--mut)}
+.body{white-space:pre-wrap;word-break:break-word;margin-top:6px}.tag{background:#eef2ff;color:#3730a3;border-radius:999px;padding:1px 8px;font-size:.75rem}
+.empty{color:var(--mut);text-align:center;padding:20px}
+.inb{display:grid;gap:16px;grid-template-columns:1fr}@media(min-width:800px){.inb{grid-template-columns:minmax(0,1fr) minmax(0,1.3fr)}}.inb .card{margin-bottom:0}
+#list{max-height:380px;overflow-y:auto;padding-right:4px}
+li.pick{cursor:pointer}li.pick:hover{border-color:#93c5fd}li.sel{border-color:var(--acc);box-shadow:0 0 0 2px #2563eb33}
+.ids{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:1px 8px;margin:6px 0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+.ids dt{color:var(--mut)}.ids dd{margin:0;word-break:break-all}.ids dd.rx{color:#db2777;font-weight:700}
+li .lb{width:auto;margin:6px 0 0;padding:3px 10px;font-size:.78rem;background:#eef2ff;color:#3730a3}
+.ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}.ctl button{width:auto;margin:0;padding:6px 14px;font-size:.85rem}.ctl button.sec{background:#e5e7eb;color:var(--fg)}
+button.sec{background:#e5e7eb;color:var(--fg)}
+.chk{display:flex;align-items:flex-start;gap:8px;margin:12px 0 4px;color:var(--fg);font-size:.9rem;cursor:pointer}
+.chk input{width:auto;margin:2px 0 0;flex:none}
+.rekey{margin-top:16px;padding-top:14px;border-top:1px solid var(--bd)}
+.rekey h3{margin:0 0 8px;font-size:.95rem}
+.lock{background:#fff7ed;color:#9a3412;border:1px dashed #fdba74;border-radius:8px;padding:8px 10px;margin-top:6px;font-size:.9rem;white-space:pre-wrap;word-break:break-word}
+.lock.err{background:#fef2f2;color:var(--err);border-color:#fecaca;border-style:solid}
+.lock.ok{background:#f0fdf4;color:var(--ok);border-color:#bbf7d0;border-style:solid}
+#xcode{min-height:72px;font:13px/1.4 ui-monospace,Menlo,Consolas,monospace}
+#xcode[readonly]{background:#f3f4f6;color:#374151}
+#xfrom:not([hidden]){background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;border-radius:8px;padding:8px 10px;margin-top:10px;font-size:.85rem}
+pre.asmblock{margin:6px 0 0;padding:8px 10px;background:#111827;color:#e5e7eb;border-radius:8px;font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-word;overflow:auto;max-height:200px}
+.asmerr{background:#fef2f2;color:var(--err);border:1px solid #fecaca;border-radius:8px;padding:6px 8px;margin-top:6px;font-size:.85rem}
+button.linkish{width:auto;margin:0;padding:0;background:none;color:var(--acc);text-align:left;font-weight:700;font-size:1.05rem}
+.trlist{max-height:320px;overflow:auto;margin-top:8px;border:1px solid var(--bd);border-radius:8px;background:#fff}
+.trrow{padding:8px 10px;border-bottom:1px solid var(--bd);font-size:.85rem}
+.trrow:last-child{border-bottom:0}
+.trpair{color:var(--mut);font-size:.75rem;margin-bottom:4px}
+.trsrc,.trdst{white-space:pre-wrap;word-break:break-word}
+.trdst{color:#3730a3;margin-top:2px}
+.st{font-size:.8rem;color:var(--mut);font-family:ui-monospace,Menlo,Consolas,monospace}
+.asmg{display:grid;gap:16px;grid-template-columns:1fr}@media(min-width:900px){.asmg{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)}}
+.ed{display:flex;background:#111827;border-radius:8px;overflow:hidden;font:13px/20px ui-monospace,Menlo,Consolas,monospace;height:280px}
+.gut{flex:none;width:46px;overflow:hidden;background:#0b1220;color:#6b7280;text-align:right;padding:8px 0;user-select:none}
+.gut div{height:20px;padding-right:8px;white-space:nowrap}.gut div.nx{color:#fcd34d}.gut div.nx:before{content:'▶ '}.gut div.cur{color:#fde68a;font-weight:700}.gut div.err{color:#fca5a5;font-weight:700}
+.ew{position:relative;flex:1;min-width:0}
+.bd{position:absolute;inset:0;overflow:hidden;pointer-events:none;padding:8px 0}.bd>div{width:max-content;min-width:100%;padding-bottom:40px}.bd>div>div{height:20px}
+.bd .cur{background:#a16207aa}.bd .err{background:#991b1b}
+.ew textarea{position:absolute;inset:0;width:100%;height:100%;min-height:0;margin:0;padding:8px 10px;border:0;border-radius:0;background:transparent;color:#e5e7eb;caret-color:#fff;font:inherit;white-space:pre;overflow:auto;resize:none;outline:none}
+.bd>div>div{padding:0 10px}
+.log{height:280px;overflow-y:auto;background:#f9fafb;border:1px solid var(--bd);border-radius:8px;padding:6px 8px;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace}
+.log div{border-bottom:1px dashed #e5e7eb;padding:1px 0;word-break:break-word}.log .n{color:var(--mut)}.log .i{color:#1e40af;font-weight:700}.log .r{color:#be185d}.log .f{color:var(--mut)}.log .e{color:var(--err);font-weight:700}.log .x{color:#15803d}
+.regs{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px}.regsin{min-width:900px}
+.flags{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;font-size:.85rem}
+.fl{display:inline-flex;gap:6px;align-items:center;padding:3px 10px;border:1px solid var(--bd);border-radius:999px;font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:700;color:var(--mut);background:#f9fafb}.fl.on{background:#fee2e2;border-color:#fca5a5;color:#991b1b}.fl small{font-weight:400;font-family:system-ui,sans-serif}
+.rb{border-left:3px solid var(--c);border-radius:6px 0 0 6px;padding:4px 0 4px 8px;margin-top:4px;background:linear-gradient(90deg,color-mix(in srgb,var(--c) 7%,#fff),#fff 60%)}
+.rb .rb{margin-left:20px}.rb.top{margin-top:12px}
+.rr{display:flex;align-items:flex-start;gap:10px}
+.rh{flex:1 1 auto;min-width:0;font-size:12px;line-height:1.35}.rh b{color:var(--c);font-size:13px;margin-right:6px}.rh .rng{color:var(--mut);font-size:11px}
+.rh code{font-family:ui-monospace,Menlo,Consolas,monospace;display:block;white-space:nowrap}.rh .dv{color:var(--fg)}.rh .hx{color:#374151}.rh .sub{color:var(--mut);font-size:11px;font-family:ui-monospace,Menlo,Consolas,monospace}
+.bg{flex:none;display:flex;gap:4px;font:10px/14px ui-monospace,Menlo,Consolas,monospace}
+.bg .grp{display:flex;flex-direction:column}.bg .bits{display:flex}.bg .cap{font-size:8px;line-height:10px;color:#9ca3af;display:flex;justify-content:space-between}
+.bg .b{width:11px;height:16px;text-align:center;border:1px solid #d1d5db;border-left-width:0;background:#fff;color:#9ca3af}.bg .bits .b:first-child{border-left-width:1px}
+.bg .b.one{background:#dbeafe;color:#1e3a8a;font-weight:700}.bg .b.chg{outline:2px solid #f59e0b;outline-offset:-2px}
+.bg.ah{margin-right:92px}
+.small{font-size:.8rem;color:var(--mut)}
+.stk{font:12px ui-monospace,Menlo,Consolas,monospace;color:var(--mut);margin-top:10px;word-break:break-all}
+</style></head><body>
+<main>
+<div class="topbar">
+<nav class="nav" aria-label="Pages"><a href="/" data-i18n="navInbox">Inbox</a><a href="/full" data-i18n="navFull">Full</a><a href="/rax" data-i18n="navRax">RAX</a><a href="/asm" class="on" aria-current="page" data-i18n="navAsm">ASM</a></nav>
+<label class="langpick"><span data-i18n="langLabel">Language</span>
+<select id="lang" aria-label="Language">
+<option value="en">English</option>
+<option value="ja">日本語</option>
+<option value="ru">Русский</option>
+<option value="ko">한국어</option>
+<option value="zh">中文（简体）</option>
+</select></label>
+</div>
+<div class="inb" style="margin-bottom:16px">
+<section class="card"><h2 data-i18n="sendHeading">Send a message</h2>
+<form id="sf">
+<label for="source" data-i18n="source">Source</label><input id="source" name="source" list="srclist" placeholder="KI" maxlength="64" required><datalist id="srclist"></datalist>
+<label for="recipient" data-i18n="recipient">Recipient</label><input id="recipient" name="recipient" placeholder="user1" pattern="[A-Za-z0-9_\-]{1,64}" required>
+<label for="language" data-i18n="labelMeta">Label (metadata only, never executed)</label>
+<select id="language" name="language"><option value="text">text</option><option value="javascript">javascript</option><option value="python">python</option><option value="bash">bash</option><option value="assembly" data-i18n="langAssembly">assembly</option></select>
+<label for="content" data-i18n="content">Content</label><textarea id="content" name="content" maxlength="5000" required></textarea>
+<div class="note" id="cnote"></div>
+<label class="chk"><input id="doenc" type="checkbox"> <span data-i18n="encrypt">Encrypt this message</span></label>
+<div id="encbox" hidden>
+<label for="spass" data-i18n="passphrase">Passphrase</label>
+<div class="row"><input id="spass" type="password" autocomplete="new-password" data-i18n-placeholder="passphrasePh"><button type="button" id="phraser" class="sec" data-i18n="phraseFrom">Phrase from translations</button></div>
+<div class="note" data-i18n="passStrongNote">Encryption is optional and uses a passphrase you type. A suggested translation phrase is only a hint — choose your own strong passphrase. The spreadsheet is not used as a key.</div>
+<div class="note" id="phrasenote"></div>
+</div>
+<button id="sb" type="submit" data-i18n="send">Send</button><div id="sm"></div></form></section>
+<section class="card"><h2 data-i18n="readHeading">Read an inbox</h2>
+<form id="lf" class="row"><input id="user" data-i18n-placeholder="userPh" placeholder="username, e.g. user1" required><button type="submit" data-i18n="load">Load</button></form>
+<div class="note" data-i18n="readNote">Click a message to load its unix timestamp into RAX in the simulator.</div>
+<label for="rpass" data-i18n="decryptPass">Decrypt passphrase</label>
+<div class="row"><input id="rpass" type="password" autocomplete="off" data-i18n-placeholder="passphrasePh"><button type="button" id="decr" data-i18n="decrypt">Decrypt</button></div>
+<div class="rekey" id="rekeybox">
+<h3 data-i18n="changePassHeading">Change passphrase</h3>
+<p class="note" data-i18n="changePassNote">Decrypts every encrypted message in this inbox with the old passphrase and locks each one again with the new passphrase. If any message cannot be decrypted, nothing is changed. Passphrases are never stored on the server or in localStorage.</p>
+<label for="oldpass" data-i18n="oldPassphrase">Old passphrase</label>
+<input id="oldpass" type="password" autocomplete="off" data-i18n-placeholder="passphrasePh">
+<label for="newpass" data-i18n="newPassphrase">New passphrase</label>
+<input id="newpass" type="password" autocomplete="new-password" data-i18n-placeholder="passphrasePh">
+<label for="newpass2" data-i18n="confirmNewPassphrase">Confirm new passphrase</label>
+<input id="newpass2" type="password" autocomplete="new-password" data-i18n-placeholder="passphrasePh">
+<button type="button" id="rekey" data-i18n="changePass">Change passphrase</button>
+</div>
+<div id="lm"></div><ul id="list"></ul></section>
+</div>
+
+<section class="card" id="xformcard"><h2 data-i18n="raxXformHeading">Displayed RAX ID</h2>
+<p class="note" data-i18n="raxXformNote">This snippet runs only in your browser with RAX preloaded from each message's unix timestamp. The result is shown as “RAX ID (custom)”. The stored RAX ID and UUID do not change. Default: shr rax, 2</p>
+<label for="xcode" data-i18n="raxXformLabel">Assembly snippet</label>
+<textarea id="xcode" spellcheck="false" wrap="off" autocapitalize="off" autocomplete="off">shr rax, 2</textarea>
+<div class="ctl"><button type="button" id="xapply" data-i18n="apply">Apply</button><button type="button" id="xreset" class="sec" data-i18n="resetDefault">Reset to default</button><button type="button" id="xsend" data-i18n="sendAsRaxMod">Send as RAX ID modifier</button><button type="button" id="xuseown" class="sec" hidden data-i18n="useOwnSnippet">Use my own snippet instead</button></div>
+<div id="xfrom" hidden></div>
+<div id="xmsg"></div>
+</section>
+
+<section class="card" id="trcard">
+<h2><button type="button" id="trtog" class="linkish">Translations (reference)</button></h2>
+<div id="trpanel" hidden>
+<p class="note" data-i18n="trNote">Your personal saved translations, shown as reference only. Message content is not translated. These phrases are not used as encryption keys.</p>
+<div class="row">
+<div style="flex:1 1 180px"><label for="trpair" data-i18n="trFilter">Language pair</label><select id="trpair"></select></div>
+<div style="flex:1 1 180px"><label for="trq" data-i18n="trSearch">Search</label><input id="trq" type="search" data-i18n-placeholder="trSearchPh"></div>
+</div>
+<div class="note" id="trcount"></div>
+<div id="trlist" class="trlist"></div>
+</div>
+</section>
+
+<section class="card" id="asmcard"><h2>⚙ <span data-i18n="simHeading">x86-64 assembly simulator</span> <span class="tag" data-i18n="simTag">runs only in your browser · BigInt · 64-bit</span></h2>
+<div class="asmg">
+<div>
+<div class="ed"><div class="gut" id="gut"></div><div class="ew"><div class="bd" id="bd"><div id="bdi"></div></div><textarea id="code" spellcheck="false" wrap="off" autocapitalize="off" autocomplete="off" data-i18n-aria="codeAria" aria-label="Assembly source (Intel syntax)"></textarea></div></div>
+<div class="ctl"><button type="button" id="run">▶ <span data-i18n="run">Run</span></button><button type="button" id="step">⏭ <span data-i18n="stepBtn">Step</span></button><button type="button" id="reset" class="sec">⟲ <span data-i18n="resetBtn">Reset</span></button><button type="button" id="ldmsg" class="sec" disabled>✉ <span data-i18n="loadMsgTs">Load message ts</span></button><button type="button" id="ldnow" class="sec">⏱ <span data-i18n="loadNowTs">Load now ts</span></button></div>
+<div class="st" id="status"></div><div id="aerr"></div>
+<div class="note" data-i18n="simNote">Intel syntax, one instruction per line, ; comments, label: + jmp/jz/jnz/je/jne/jc/jnc (also js/jns/jo/jno/jl/jle/jg/jge/ja/jae/jb/jbe), hlt. Registers rax rbx rcx rdx rsi rdi and their 32/16/8-bit parts. Immediates: decimal, 0x hex, 0b binary. No memory operands. Run stops after 10000 steps.</div>
+</div>
+<div><div class="small" style="margin-bottom:4px" data-i18n="execLog">Execution log</div><div class="log" id="log" aria-live="polite"></div></div>
+</div>
+</section>
+
+<section class="card" id="regcard"><h2>🧩 <span data-i18n="regHeading">Register hierarchy</span></h2>
+<div class="flags" id="flags"></div>
+<div class="regs"><div class="regsin" id="regs"></div></div>
+<div class="stk" id="stk"></div>
+</section>
+</main>
+<script>
+'use strict';
+/*SIM-BEGIN*/
+// Pure in-browser x86-64 subset simulator. Interprets parsed tokens only: no eval, no Function, nothing sent to the server.
+const AsmSim=(function(){
+ const mask=w=>(1n<<BigInt(w))-1n;
+ const BASES=['rax','rbx','rcx','rdx','rsi','rdi'];
+ const REG=Object.create(null);
+ for(const x of ['a','b','c','d']){const b='r'+x+'x';REG[b]={base:b,off:0,w:64};REG['e'+x+'x']={base:b,off:0,w:32};REG[x+'x']={base:b,off:0,w:16};REG[x+'h']={base:b,off:8,w:8};REG[x+'l']={base:b,off:0,w:8}}
+ for(const x of ['si','di']){const b='r'+x;REG[b]={base:b,off:0,w:64};REG['e'+x]={base:b,off:0,w:32};REG[x]={base:b,off:0,w:16};REG[x+'l']={base:b,off:0,w:8}}
+ const JCC={jmp:()=>true,jz:f=>f.ZF,je:f=>f.ZF,jnz:f=>!f.ZF,jne:f=>!f.ZF,jc:f=>f.CF,jb:f=>f.CF,jnae:f=>f.CF,jnc:f=>!f.CF,jae:f=>!f.CF,jnb:f=>!f.CF,
+  js:f=>f.SF,jns:f=>!f.SF,jo:f=>f.OF,jno:f=>!f.OF,jl:f=>f.SF!==f.OF,jnge:f=>f.SF!==f.OF,jge:f=>f.SF===f.OF,jnl:f=>f.SF===f.OF,
+  jle:f=>f.ZF||f.SF!==f.OF,jng:f=>f.ZF||f.SF!==f.OF,jg:f=>!f.ZF&&f.SF===f.OF,jnle:f=>!f.ZF&&f.SF===f.OF,ja:f=>!f.CF&&!f.ZF,jnbe:f=>!f.CF&&!f.ZF,jbe:f=>f.CF||f.ZF,jna:f=>f.CF||f.ZF};
+ const ALU2=['mov','add','sub','and','or','xor','cmp','test','imul'],SHIFT=['shl','sal','shr','sar','rol','ror'],UN=['inc','dec','not','neg'];
+ const ARITY=Object.create(null);ALU2.concat(SHIFT).forEach(o=>ARITY[o]=2);UN.forEach(o=>ARITY[o]=1);ARITY.push=1;ARITY.pop=1;ARITY.nop=0;ARITY.hlt=0;Object.keys(JCC).forEach(o=>ARITY[o]=1);
+ const MAX_STACK=1024;
+ function err(ln,m){const e=new Error('Line '+ln+': '+m);e.line=ln;return e}
+ function parseOperand(s,ln){const raw=s.trim(),t=raw.toLowerCase();
+  if(!t)throw err(ln,'missing operand');
+  if(t.includes('[')||/\b(ptr|byte|word|dword|qword)\b/.test(t))throw err(ln,"memory operands are not supported: '"+raw+"'");
+  if(REG[t])return Object.assign({k:'reg',name:t},REG[t]);
+  if(/^r(sp|bp|\d+[dwb]?)$|^(e?sp|e?bp|spl|bpl)$/.test(t))throw err(ln,"register '"+raw+"' is not supported (use rax/rbx/rcx/rdx/rsi/rdi and their sub-registers)");
+  const m=/^([+-]?)\s*(0x[0-9a-f]+|0b[01]+|\d+)$/.exec(t);
+  if(!m)throw err(ln,"unsupported operand '"+raw+"'");
+  let v=BigInt(m[2]);if(m[1]==='-')v=-v;
+  if(v<-(1n<<63n)||v>mask(64))throw err(ln,"immediate '"+raw+"' does not fit in 64 bits");
+  return{k:'imm',v,raw};}
+ function fits(v,w){return v>=-(1n<<BigInt(w-1))&&v<=mask(w)}
+ function validate(op,a,ln){
+  if(op==='nop'||op==='hlt'||op in JCC)return;
+  if(op==='push'){if(a[0].k==='reg'&&a[0].w!==64)throw err(ln,'push supports 64-bit registers only (got '+a[0].name+')');if(a[0].k==='imm'&&(a[0].v<-(1n<<31n)||a[0].v>=(1n<<31n)))throw err(ln,'push immediate must fit in signed 32 bits');return}
+  const d=a[0];if(d.k!=='reg')throw err(ln,op+': destination must be a register');
+  if(op==='pop'){if(d.w!==64)throw err(ln,'pop supports 64-bit registers only (got '+d.name+')');return}
+  if(UN.includes(op))return;
+  const s=a[1];
+  if(SHIFT.includes(op)){if(s.k==='reg'&&s.name!=='cl')throw err(ln,op+': count must be an immediate or cl');if(s.k==='imm'&&(s.v<0n||s.v>255n))throw err(ln,op+': count must be 0..255');return}
+  if(op==='imul'&&d.w===8)throw err(ln,'imul (2-operand) does not support 8-bit registers');
+  if(s.k==='reg'){if(s.w!==d.w)throw err(ln,'operand size mismatch: '+d.name+' is '+d.w+'-bit, '+s.name+' is '+s.w+'-bit');return}
+  if(!fits(s.v,d.w))throw err(ln,"immediate '"+s.raw+"' out of range for "+d.w+'-bit register '+d.name);
+  if(d.w===64&&op!=='mov'&&(s.v<-(1n<<31n)||s.v>=(1n<<31n)))throw err(ln,op+" with a 64-bit register only takes a signed 32-bit immediate (only mov r64 accepts imm64); load it into a register first");}
+ function parse(src){
+  const lines=String(src).split(/\r?\n/),ins=[],labels=Object.create(null),jumps=[];
+  lines.forEach((raw,i)=>{const ln=i+1;let s=raw;const c=s.indexOf(';');if(c>=0)s=s.slice(0,c);s=s.trim();let m;
+   while((m=/^([A-Za-z_.$][\w.$]*)\s*:/.exec(s))){const name=m[1].toLowerCase();
+    if(REG[name]||name in ARITY)throw err(ln,"'"+m[1]+"' cannot be used as a label name");
+    if(name in labels)throw err(ln,"duplicate label '"+m[1]+"'");labels[name]=ins.length;s=s.slice(m[0].length).trim()}
+   if(!s)return;
+   const sp=s.search(/\s/),op=(sp<0?s:s.slice(0,sp)).toLowerCase(),rest=sp<0?'':s.slice(sp).trim();
+   if(!(op in ARITY))throw err(ln,"unsupported instruction '"+(sp<0?s:s.slice(0,sp))+"'");
+   const parts=rest?rest.split(','):[];
+   if(parts.length!==ARITY[op])throw err(ln,op+' expects '+ARITY[op]+' operand'+(ARITY[op]===1?'':'s')+', got '+parts.length);
+   let args;
+   if(op in JCC){const t=parts[0].trim();if(!/^[A-Za-z_.$][\w.$]*$/.test(t))throw err(ln,op+": jump target must be a label, got '"+t+"'");args=[{k:'label',name:t.toLowerCase(),raw:t}];jumps.push({ln,name:t.toLowerCase(),raw:t})}
+   else args=parts.map(p=>parseOperand(p,ln));
+   validate(op,args,ln);ins.push({op,args,line:ln,text:s.replace(/\s+/g,' ')})});
+  for(const j of jumps)if(!(j.name in labels))throw err(j.ln,"unknown label '"+j.raw+"'");
+  return{ins,labels};}
+ function createState(){const R={};BASES.forEach(b=>R[b]=0n);return{R,F:{CF:false,ZF:false,SF:false,OF:false},stack:[],pc:0,steps:0}}
+ function read(st,r){return(st.R[r.base]>>BigInt(r.off))&mask(r.w)}
+ function write(st,r,v){v&=mask(r.w);
+  if(r.w>=32)st.R[r.base]=v; // 64-bit write, or 32-bit write zero-extends into the full 64-bit register
+  else{const m=mask(r.w)<<BigInt(r.off);st.R[r.base]=(st.R[r.base]&~m&mask(64))|(v<<BigInt(r.off))}}
+ function regInfo(name){return REG[String(name).toLowerCase()]||null}
+ const hex=(v,w)=>'0x'+v.toString(16).toUpperCase().padStart(w/4,'0');
+ function step(prog,st){
+  if(st.pc>=prog.ins.length)return null;
+  const I=prog.ins[st.pc],a=I.args,F=st.F,op=I.op;st.pc++;st.steps++;
+  let res='';
+  const d=a[0];
+  if(op in JCC){const t=JCC[op](F);if(t)st.pc=prog.labels[d.name];res=op==='jmp'?'→ '+d.raw:(t?'taken → '+d.raw:'not taken')}
+  else if(op==='nop'){res='(no operation)'}
+  else if(op==='hlt'){st.pc=prog.ins.length;res='halt'}
+  else if(op==='push'){if(st.stack.length>=MAX_STACK)throw err(I.line,'stack overflow ('+MAX_STACK+' entries)');const v=d.k==='imm'?d.v&mask(64):read(st,d);st.stack.push(v);res='pushed '+v+' · stack depth '+st.stack.length}
+  else if(op==='pop'){if(!st.stack.length)throw err(I.line,'pop from empty stack');write(st,d,st.stack.pop())}
+  else{
+   const w=d.w,W=BigInt(w),M=mask(w),SB=1n<<(W-1n),sg=v=>(v&SB)!==0n,toS=v=>sg(v)?v-(1n<<W):v,zs=r=>{F.ZF=r===0n;F.SF=sg(r)};
+   const val=o=>o.k==='imm'?o.v&M:read(st,o);
+   const A=read(st,d);let r=null;
+   switch(op){
+    case 'mov':r=val(a[1]);break;
+    case 'add':{const b=val(a[1]),full=A+b;r=full&M;F.CF=full>M;F.OF=sg(A)===sg(b)&&sg(r)!==sg(A);zs(r);break}
+    case 'sub':case 'cmp':{const b=val(a[1]);r=(A-b)&M;F.CF=A<b;F.OF=sg(A)!==sg(b)&&sg(r)!==sg(A);zs(r);if(op==='cmp'){res='cmp '+A+' , '+b;r=null}break}
+    case 'and':case 'or':case 'xor':case 'test':{const b=val(a[1]);r=op==='or'?A|b:op==='xor'?A^b:A&b;F.CF=false;F.OF=false;zs(r);if(op==='test'){res='test → '+r;r=null}break}
+    case 'imul':{const p=toS(A)*toS(val(a[1]));r=p&M;F.CF=F.OF=toS(r)!==p;zs(r);break}
+    case 'inc':r=(A+1n)&M;F.OF=r===SB;zs(r);break;
+    case 'dec':r=(A-1n)&M;F.OF=A===SB;zs(r);break;
+    case 'neg':r=(-A)&M;F.CF=A!==0n;F.OF=A===SB;zs(r);break;
+    case 'not':r=(~A)&M;break;
+    default:{ // shifts / rotates
+     const c=(a[1].k==='imm'?a[1].v:read(st,a[1]))&(w===64?63n:31n);r=A;
+     if(c===0n){res='count 0: no change, flags unaffected';break}
+     if(op==='shl'||op==='sal'){r=(A<<c)&M;F.CF=c<=W?((A>>(W-c))&1n)===1n:false;F.OF=sg(r)!==F.CF;zs(r)}
+     else if(op==='shr'){r=A>>c;F.CF=((A>>(c-1n))&1n)===1n;F.OF=sg(A);zs(r)}
+     else if(op==='sar'){const s=toS(A);r=(s>>c)&M;F.CF=((s>>(c-1n))&1n)===1n;F.OF=false;zs(r)}
+     else{const k=c%W;r=k?(op==='rol'?((A<<k)|(A>>(W-k))):((A>>k)|(A<<(W-k))))&M:A;
+      if(op==='rol'){F.CF=(r&1n)===1n;F.OF=sg(r)!==F.CF}else{F.CF=sg(r);F.OF=sg(r)!==(((r>>(W-2n))&1n)===1n)}}
+    }
+   }
+   if(r!==null)write(st,d,r);
+  }
+  if(d&&d.k==='reg'&&!res.startsWith('cmp')&&!res.startsWith('test')&&op!=='push'){const v=read(st,d);res=d.name+' = '+v+' ('+hex(v,d.w)+')'+(d.w<64?' · '+d.base+' = '+hex(st.R[d.base],64):'')+(res?' · '+res:'')}
+  return{ins:I,res,flags:'CF='+(+F.CF)+' ZF='+(+F.ZF)+' SF='+(+F.SF)+' OF='+(+F.OF)};}
+ function run(prog,st,limit,onStep){limit=limit||10000;let n=0;
+  while(st.pc<prog.ins.length){if(n>=limit)return{count:n,limitHit:true};const r=step(prog,st);n++;if(onStep)onStep(r)}
+  return{count:n,limitHit:false};}
+ return{parse,createState,step,run,read,write,regInfo,REG,BASES,mask,hex,STEP_LIMIT:10000};
+})();
+/*SIM-END*/
+const I18N = {"en": {"title": "ASM · RAX register simulator", "navInbox": "Inbox", "navFull": "Full", "navRax": "RAX", "navAsm": "ASM", "langLabel": "Language", "sendHeading": "Send a message", "source": "Source", "recipient": "Recipient", "labelMeta": "Label (metadata only, never executed)", "content": "Content", "charCount": "{n}/{max} characters · Allowed sources: {sources}", "send": "Send", "sentOk": "Sent to {recipient} · RAX ID {raxId} · ID {id}", "encrypt": "Encrypt this message", "passphrase": "Passphrase", "passphrasePh": "Enter a passphrase", "phraseFrom": "Phrase from translations", "phraseNote": "Suggested from your saved translations (choose your own strong passphrase instead): {phrase}", "passStrongNote": "Encryption is optional and uses a passphrase you type. A suggested translation phrase is only a hint — choose your own strong passphrase. The spreadsheet is not used as a key.", "passRequired": "Enter a passphrase to encrypt this message.", "encFail": "Encryption failed.", "noTranslations": "Translations are not loaded, so a phrase could not be suggested.", "readHeading": "Read an inbox", "userPh": "username, e.g. user1", "load": "Load", "readNote": "Click a message to load its unix timestamp into RAX in the simulator.", "noMessages": "No messages for {user}.", "fromSource": "From {source}", "raxIdCustom": "RAX ID (custom)", "raxIdStored": "RAX ID", "idUuid": "ID (UUID)", "unixTs": "unix ts", "loadMsgTs": "Load message ts", "loadMsgTsTitle": "Load this message's unix timestamp into the simulator as mov rax, {ts} / shr rax, 2", "clickToLoadTitle": "Click to load this message's unix timestamp into RAX", "locked": "Encrypted message — enter a passphrase and press Decrypt.", "decryptPass": "Decrypt passphrase", "decrypt": "Decrypt", "decryptNeedPass": "Enter a passphrase to decrypt messages.", "decryptNone": "No encrypted messages in this inbox.", "decryptFail": "Wrong passphrase or the message could not be decrypted.", "decryptPartial": "Some messages could not be decrypted. Check the passphrase.", "decryptOk": "Decrypted {n} message(s).", "decrypted": "Decrypted", "encryptedTag": "encrypted", "raxXformHeading": "Displayed RAX ID", "raxXformNote": "This snippet runs only in your browser with RAX preloaded from each message's unix timestamp. The result is shown as “RAX ID (custom)”. The stored RAX ID and UUID do not change. Default: shr rax, 2", "raxXformLabel": "Assembly snippet", "apply": "Apply", "resetDefault": "Reset to default", "raxXformOk": "Applied. Displayed RAX IDs now use this snippet.", "raxXformReset": "Reset to default: shr rax, 2", "simHeading": "x86-64 assembly simulator", "simTag": "runs only in your browser · BigInt · 64-bit", "run": "Run", "stepBtn": "Step", "resetBtn": "Reset", "loadNowTs": "Load now ts", "execLog": "Execution log", "simNote": "Intel syntax, one instruction per line, ; comments, label: + jmp/jz/jnz/je/jne/jc/jnc (also js/jns/jo/jno/jl/jle/jg/jge/ja/jae/jb/jbe), hlt. Registers rax rbx rcx rdx rsi rdi and their 32/16/8-bit parts. Immediates: decimal, 0x hex, 0b binary. No memory operands. Run stops after 10000 steps.", "codeAria": "Assembly source (Intel syntax)", "regHeading": "Register hierarchy", "flagsLabel": "Flags:", "carry": "carry", "zero": "zero", "sign": "sign", "overflow": "overflow", "stackLine": "Stack ({n}, top first): {items}", "stackEmpty": "empty", "trShow": "Translations (reference)", "trHide": "Hide translations", "trNote": "Your personal saved translations, shown as reference only. Message content is not translated. These phrases are not used as encryption keys.", "trFilter": "Language pair", "trAll": "All pairs", "trSearch": "Search", "trSearchPh": "Search source or translation", "trEmpty": "No matching translations.", "trCount": "{n} shown", "trLoadFail": "Could not load translations.json", "langAssembly": "assembly", "sendAsRaxMod": "Send as RAX ID modifier", "usingAsmFromMsg": "Using assembly from message {raxId} sent by {source}", "useOwnSnippet": "Use my own snippet instead", "useOwnSnippetOk": "Using your saved snippet again.", "applyToRaxIds": "Apply to RAX IDs", "asmInvalid": "This assembly could not be applied to RAX IDs: {error}", "sendAsRaxModNeedRecipient": "Enter a recipient in the send form first.", "sendAsRaxModEmpty": "The assembly snippet is empty.", "noInstructions": "No instructions to run.", "changePassHeading": "Change passphrase", "changePassNote": "Decrypts every encrypted message in this inbox with the old passphrase and locks each one again with the new passphrase. If any message cannot be decrypted, nothing is changed. Passphrases are never stored on the server or in localStorage.", "oldPassphrase": "Old passphrase", "newPassphrase": "New passphrase", "confirmNewPassphrase": "Confirm new passphrase", "changePass": "Change passphrase", "changePassNeedInbox": "Load an inbox first.", "changePassNeedOld": "Enter the current passphrase.", "changePassNeedNew": "Enter a new passphrase.", "changePassMismatch": "New passphrase and confirmation do not match.", "changePassNone": "No encrypted messages in this inbox.", "changePassFail": "Could not decrypt {n} message(s) with the old passphrase. No changes were made.", "changePassChecking": "Checking encrypted messages…", "changePassProgress": "Re-encrypting {done} of {total}…", "changePassOk": "Re-encrypted {n} messages", "changePassServerFail": "Could not save the re-encrypted messages: {error}"}, "ja": {"title": "ASM · RAX レジスタシミュレータ", "navInbox": "受信箱", "navFull": "フル", "navRax": "RAX", "navAsm": "ASM", "langLabel": "言語", "sendHeading": "メッセージを送信", "source": "差出人", "recipient": "宛先", "labelMeta": "ラベル（メタデータのみ。実行されません）", "content": "本文", "charCount": "{n}/{max} 文字 · 許可された差出人: {sources}", "send": "送信", "sentOk": "{recipient} に送信しました · RAX ID {raxId} · ID {id}", "encrypt": "このメッセージを暗号化する", "passphrase": "パスフレーズ", "passphrasePh": "パスフレーズを入力", "phraseFrom": "翻訳からフレーズを選ぶ", "phraseNote": "保存済み翻訳からの候補です（本番の秘密には使わず、ご自身の強いパスフレーズを選んでください）: {phrase}", "passStrongNote": "暗号化は任意で、入力したパスフレーズから鍵を作ります。翻訳フレーズはヒントにすぎません。表計算ファイルは鍵には使いません。ご自身で強いパスフレーズを決めてください。", "passRequired": "メッセージを暗号化するにはパスフレーズを入力してください。", "encFail": "暗号化に失敗しました。", "noTranslations": "翻訳を読み込めなかったため、フレーズを提案できません。", "readHeading": "受信箱を開く", "userPh": "ユーザー名（例: user1）", "load": "読み込む", "readNote": "メッセージをクリックすると、その Unix タイムスタンプがシミュレータの RAX に読み込まれます。", "noMessages": "{user} のメッセージはありません。", "fromSource": "{source} から", "raxIdCustom": "RAX ID（カスタム）", "raxIdStored": "RAX ID", "idUuid": "ID（UUID）", "unixTs": "unix ts", "loadMsgTs": "メッセージの時刻を読み込む", "loadMsgTsTitle": "このメッセージの Unix タイムスタンプをシミュレータに mov rax, {ts} / shr rax, 2 として読み込みます", "clickToLoadTitle": "クリックするとこのメッセージの Unix タイムスタンプが RAX に読み込まれます", "locked": "暗号化されたメッセージです。パスフレーズを入力して「復号」を押してください。", "decryptPass": "復号パスフレーズ", "decrypt": "復号", "decryptNeedPass": "メッセージを復号するにはパスフレーズを入力してください。", "decryptNone": "この受信箱に暗号化メッセージはありません。", "decryptFail": "パスフレーズが違うか、メッセージを復号できませんでした。", "decryptPartial": "一部のメッセージを復号できませんでした。パスフレーズを確認してください。", "decryptOk": "{n} 件のメッセージを復号しました。", "decrypted": "復号済み", "encryptedTag": "暗号化", "raxXformHeading": "表示用 RAX ID", "raxXformNote": "このスニペットは各メッセージの Unix タイムスタンプを RAX に入れた状態で、ブラウザ内だけ実行されます。結果は「RAX ID（カスタム）」として表示されます。保存済みの RAX ID と UUID は変わりません。既定: shr rax, 2", "raxXformLabel": "アセンブリスニペット", "apply": "適用", "resetDefault": "既定に戻す", "raxXformOk": "適用しました。表示中の RAX ID はこのスニペットを使います。", "raxXformReset": "既定に戻しました: shr rax, 2", "simHeading": "x86-64 アセンブリシミュレータ", "simTag": "ブラウザ内のみで実行 · BigInt · 64 ビット", "run": "実行", "stepBtn": "ステップ", "resetBtn": "リセット", "loadNowTs": "現在時刻を読み込む", "execLog": "実行ログ", "simNote": "Intel 構文、1 行に 1 命令、; コメント、label: と jmp/jz/jnz/je/jne/jc/jnc（js/jns/jo/jno/jl/jle/jg/jge/ja/jae/jb/jbe も可）、hlt。レジスタは rax rbx rcx rdx rsi rdi とその 32/16/8 ビット部分。即値は十進、0x 十六進、0b 二進。メモリオペランドは不可。1 回の実行は 10000 ステップで停止します。", "codeAria": "アセンブリソース（Intel 構文）", "regHeading": "レジスタ階層", "flagsLabel": "フラグ:", "carry": "キャリー", "zero": "ゼロ", "sign": "サイン", "overflow": "オーバーフロー", "stackLine": "スタック（{n}、先頭がトップ）: {items}", "stackEmpty": "空", "trShow": "翻訳（参照）", "trHide": "翻訳を隠す", "trNote": "あなたが保存した翻訳の参照表示です。メッセージ本文は翻訳されません。これらのフレーズは暗号化キーには使いません。", "trFilter": "言語ペア", "trAll": "すべてのペア", "trSearch": "検索", "trSearchPh": "原文または訳文を検索", "trEmpty": "一致する翻訳はありません。", "trCount": "{n} 件表示", "trLoadFail": "translations.json を読み込めませんでした", "langAssembly": "アセンブリ", "sendAsRaxMod": "RAX ID 修飾として送信", "usingAsmFromMsg": "メッセージ {raxId}（差出人: {source}）のアセンブリを使用しています", "useOwnSnippet": "自分のスニペットを使う", "useOwnSnippetOk": "保存済みのスニペットを再び使用しています。", "applyToRaxIds": "RAX ID に適用", "asmInvalid": "このアセンブリは RAX ID に適用できませんでした: {error}", "sendAsRaxModNeedRecipient": "先に送信フォームに宛先を入力してください。", "sendAsRaxModEmpty": "アセンブリスニペットが空です。", "noInstructions": "実行する命令がありません。", "changePassHeading": "パスフレーズを変更", "changePassNote": "この受信箱の暗号化メッセージをすべて現在のパスフレーズで復号し、新しいパスフレーズで再び暗号化します。1件でも復号できない場合は、何も変更しません。パスフレーズはサーバーにも localStorage にも保存されません。", "oldPassphrase": "現在のパスフレーズ", "newPassphrase": "新しいパスフレーズ", "confirmNewPassphrase": "新しいパスフレーズ（確認）", "changePass": "パスフレーズを変更", "changePassNeedInbox": "先に受信箱を読み込んでください。", "changePassNeedOld": "現在のパスフレーズを入力してください。", "changePassNeedNew": "新しいパスフレーズを入力してください。", "changePassMismatch": "新しいパスフレーズと確認用の入力が一致しません。", "changePassNone": "この受信箱に暗号化メッセージはありません。", "changePassFail": "現在のパスフレーズで {n} 件のメッセージを復号できませんでした。変更は行われていません。", "changePassChecking": "暗号化メッセージを確認しています…", "changePassProgress": "{total} 件中 {done} 件を再暗号化しています…", "changePassOk": "{n} 件のメッセージを再暗号化しました", "changePassServerFail": "再暗号化されたメッセージを保存できませんでした: {error}"}, "ru": {"title": "ASM · симулятор регистра RAX", "navInbox": "Входящие", "navFull": "Полный", "navRax": "RAX", "navAsm": "ASM", "langLabel": "Язык", "sendHeading": "Отправить сообщение", "source": "Отправитель", "recipient": "Получатель", "labelMeta": "Метка (только метаданные, никогда не выполняется)", "content": "Содержимое", "charCount": "{n}/{max} символов · Разрешённые отправители: {sources}", "send": "Отправить", "sentOk": "Отправлено для {recipient} · RAX ID {raxId} · ID {id}", "encrypt": "Зашифровать это сообщение", "passphrase": "Парольная фраза", "passphrasePh": "Введите парольную фразу", "phraseFrom": "Фраза из переводов", "phraseNote": "Предложение из сохранённых переводов (не используйте его как настоящий секрет — выберите свою надёжную фразу): {phrase}", "passStrongNote": "Шифрование необязательно и использует введённую вами фразу. Предложенный перевод — только подсказка; выберите свою надёжную парольную фразу. Таблица не используется как ключ.", "passRequired": "Чтобы зашифровать сообщение, введите парольную фразу.", "encFail": "Не удалось зашифровать.", "noTranslations": "Переводы не загружены, поэтому фразу предложить нельзя.", "readHeading": "Открыть входящие", "userPh": "имя пользователя, например user1", "load": "Загрузить", "readNote": "Нажмите сообщение, чтобы загрузить его unix-метку времени в RAX симулятора.", "noMessages": "Нет сообщений для {user}.", "fromSource": "От {source}", "raxIdCustom": "RAX ID (свой)", "raxIdStored": "RAX ID", "idUuid": "ID (UUID)", "unixTs": "unix ts", "loadMsgTs": "Загрузить время сообщения", "loadMsgTsTitle": "Загрузить unix-время этого сообщения в симулятор как mov rax, {ts} / shr rax, 2", "clickToLoadTitle": "Нажмите, чтобы загрузить unix-время этого сообщения в RAX", "locked": "Зашифрованное сообщение — введите парольную фразу и нажмите «Расшифровать».", "decryptPass": "Фраза для расшифровки", "decrypt": "Расшифровать", "decryptNeedPass": "Введите парольную фразу, чтобы расшифровать сообщения.", "decryptNone": "В этих входящих нет зашифрованных сообщений.", "decryptFail": "Неверная парольная фраза или сообщение не удалось расшифровать.", "decryptPartial": "Некоторые сообщения не удалось расшифровать. Проверьте фразу.", "decryptOk": "Расшифровано сообщений: {n}.", "decrypted": "Расшифровано", "encryptedTag": "зашифровано", "raxXformHeading": "Отображаемый RAX ID", "raxXformNote": "Этот фрагмент выполняется только в браузере: в RAX заранее помещается unix-время каждого сообщения. Результат показывается как «RAX ID (свой)». Сохранённые RAX ID и UUID не меняются. По умолчанию: shr rax, 2", "raxXformLabel": "Фрагмент ассемблера", "apply": "Применить", "resetDefault": "Сбросить к значению по умолчанию", "raxXformOk": "Применено. Отображаемые RAX ID теперь используют этот фрагмент.", "raxXformReset": "Сброшено к значению по умолчанию: shr rax, 2", "simHeading": "Симулятор ассемблера x86-64", "simTag": "только в браузере · BigInt · 64 бита", "run": "Запуск", "stepBtn": "Шаг", "resetBtn": "Сброс", "loadNowTs": "Загрузить текущее время", "execLog": "Журнал выполнения", "simNote": "Синтаксис Intel, одна инструкция в строке, комментарии ; , метки label: и jmp/jz/jnz/je/jne/jc/jnc (также js/jns/jo/jno/jl/jle/jg/jge/ja/jae/jb/jbe), hlt. Регистры rax rbx rcx rdx rsi rdi и их 32/16/8-битные части. Immediate: десятичные, 0x шестнадцатеричные, 0b двоичные. Операнды памяти не поддерживаются. Выполнение останавливается после 10000 шагов.", "codeAria": "Исходный текст ассемблера (синтаксис Intel)", "regHeading": "Иерархия регистров", "flagsLabel": "Флаги:", "carry": "перенос", "zero": "ноль", "sign": "знак", "overflow": "переполнение", "stackLine": "Стек ({n}, сверху первые): {items}", "stackEmpty": "пусто", "trShow": "Переводы (справочник)", "trHide": "Скрыть переводы", "trNote": "Ваши сохранённые переводы показаны только для справки. Текст сообщений не переводится. Эти фразы не используются как ключи шифрования.", "trFilter": "Пара языков", "trAll": "Все пары", "trSearch": "Поиск", "trSearchPh": "Искать оригинал или перевод", "trEmpty": "Нет подходящих переводов.", "trCount": "показано {n}", "trLoadFail": "Не удалось загрузить translations.json", "langAssembly": "ассемблер", "sendAsRaxMod": "Отправить как модификатор RAX ID", "usingAsmFromMsg": "Используется ассемблер из сообщения {raxId}, отправитель {source}", "useOwnSnippet": "Использовать свой фрагмент", "useOwnSnippetOk": "Снова используется ваш сохранённый фрагмент.", "applyToRaxIds": "Применить к RAX ID", "asmInvalid": "Этот ассемблер не удалось применить к RAX ID: {error}", "sendAsRaxModNeedRecipient": "Сначала укажите получателя в форме отправки.", "sendAsRaxModEmpty": "Фрагмент ассемблера пуст.", "noInstructions": "Нет инструкций для выполнения.", "changePassHeading": "Сменить парольную фразу", "changePassNote": "Расшифровывает каждое зашифрованное сообщение в этих входящих старой парольной фразой и заново шифрует его новой. Если хотя бы одно сообщение не удалось расшифровать, изменения не вносятся. Парольные фразы не сохраняются на сервере и в localStorage.", "oldPassphrase": "Старая парольная фраза", "newPassphrase": "Новая парольная фраза", "confirmNewPassphrase": "Подтвердите новую парольную фразу", "changePass": "Сменить парольную фразу", "changePassNeedInbox": "Сначала загрузите входящие.", "changePassNeedOld": "Введите текущую парольную фразу.", "changePassNeedNew": "Введите новую парольную фразу.", "changePassMismatch": "Новая парольная фраза и подтверждение не совпадают.", "changePassNone": "В этих входящих нет зашифрованных сообщений.", "changePassFail": "Не удалось расшифровать сообщений со старой парольной фразой: {n}. Изменения не внесены.", "changePassChecking": "Проверка зашифрованных сообщений…", "changePassProgress": "Повторное шифрование: {done} из {total}…", "changePassOk": "Повторно зашифровано сообщений: {n}", "changePassServerFail": "Не удалось сохранить повторно зашифрованные сообщения: {error}"}, "ko": {"title": "ASM · RAX 레지스터 시뮬레이터", "navInbox": "받은편지함", "navFull": "전체", "navRax": "RAX", "navAsm": "ASM", "langLabel": "언어", "sendHeading": "메시지 보내기", "source": "보낸 사람", "recipient": "받는 사람", "labelMeta": "레이블(메타데이터만 해당, 실행되지 않음)", "content": "내용", "charCount": "{n}/{max}자 · 허용된 보낸 사람: {sources}", "send": "보내기", "sentOk": "{recipient}에게 보냈습니다 · RAX ID {raxId} · ID {id}", "encrypt": "이 메시지 암호화", "passphrase": "암호 문구", "passphrasePh": "암호 문구 입력", "phraseFrom": "번역에서 문구 가져오기", "phraseNote": "저장된 번역에서 제안된 문구입니다(실제 비밀로는 쓰지 말고 직접 강한 암호 문구를 정하세요): {phrase}", "passStrongNote": "암호화는 선택 사항이며 입력한 암호 문구로 키를 만듭니다. 번역 문구는 힌트일 뿐입니다. 스프레드시트는 키로 쓰이지 않습니다. 직접 강한 암호 문구를 정하세요.", "passRequired": "메시지를 암호화하려면 암호 문구를 입력하세요.", "encFail": "암호화에 실패했습니다.", "noTranslations": "번역을 불러오지 못해 문구를 제안할 수 없습니다.", "readHeading": "받은편지함 열기", "userPh": "사용자 이름(예: user1)", "load": "불러오기", "readNote": "메시지를 클릭하면 해당 Unix 타임스탬프가 시뮬레이터의 RAX에 로드됩니다.", "noMessages": "{user}의 메시지가 없습니다.", "fromSource": "{source}에서", "raxIdCustom": "RAX ID(사용자 지정)", "raxIdStored": "RAX ID", "idUuid": "ID(UUID)", "unixTs": "unix ts", "loadMsgTs": "메시지 시각 불러오기", "loadMsgTsTitle": "이 메시지의 Unix 타임스탬프를 mov rax, {ts} / shr rax, 2 로 시뮬레이터에 로드합니다", "clickToLoadTitle": "클릭하면 이 메시지의 Unix 타임스탬프가 RAX에 로드됩니다", "locked": "암호화된 메시지입니다. 암호 문구를 입력하고 복호화를 누르세요.", "decryptPass": "복호화 암호 문구", "decrypt": "복호화", "decryptNeedPass": "메시지를 복호화하려면 암호 문구를 입력하세요.", "decryptNone": "이 받은편지함에 암호화된 메시지가 없습니다.", "decryptFail": "암호 문구가 잘못되었거나 메시지를 복호화할 수 없습니다.", "decryptPartial": "일부 메시지를 복호화하지 못했습니다. 암호 문구를 확인하세요.", "decryptOk": "메시지 {n}개를 복호화했습니다.", "decrypted": "복호화됨", "encryptedTag": "암호화됨", "raxXformHeading": "표시되는 RAX ID", "raxXformNote": "이 스니펫은 각 메시지의 Unix 타임스탬프를 RAX에 넣은 뒤 브라우저 안에서만 실행됩니다. 결과는 ‘RAX ID(사용자 지정)’으로 표시됩니다. 저장된 RAX ID와 UUID는 바뀌지 않습니다. 기본값: shr rax, 2", "raxXformLabel": "어셈블리 스니펫", "apply": "적용", "resetDefault": "기본값으로 재설정", "raxXformOk": "적용했습니다. 표시 중인 RAX ID가 이 스니펫을 사용합니다.", "raxXformReset": "기본값으로 되돌렸습니다: shr rax, 2", "simHeading": "x86-64 어셈블리 시뮬레이터", "simTag": "브라우저 안에서만 실행 · BigInt · 64비트", "run": "실행", "stepBtn": "단계", "resetBtn": "재설정", "loadNowTs": "현재 시각 불러오기", "execLog": "실행 로그", "simNote": "Intel 구문, 한 줄에 명령 하나, ; 주석, label: 및 jmp/jz/jnz/je/jne/jc/jnc(js/jns/jo/jno/jl/jle/jg/jge/ja/jae/jb/jbe 포함), hlt. 레지스터는 rax rbx rcx rdx rsi rdi와 32/16/8비트 부분. 즉시값은 십진, 0x 16진, 0b 이진. 메모리 피연산자는 없습니다. 실행은 10000단계 후 멈춥니다.", "codeAria": "어셈블리 소스(Intel 구문)", "regHeading": "레지스터 계층", "flagsLabel": "플래그:", "carry": "캐리", "zero": "제로", "sign": "부호", "overflow": "오버플로", "stackLine": "스택({n}, 앞이 맨 위): {items}", "stackEmpty": "비어 있음", "trShow": "번역(참고)", "trHide": "번역 숨기기", "trNote": "저장해 둔 번역을 참고용으로만 보여 줍니다. 메시지 내용은 번역되지 않습니다. 이 문구들은 암호화 키로 쓰이지 않습니다.", "trFilter": "언어 쌍", "trAll": "모든 쌍", "trSearch": "검색", "trSearchPh": "원문 또는 번역 검색", "trEmpty": "일치하는 번역이 없습니다.", "trCount": "{n}개 표시", "trLoadFail": "translations.json을 불러오지 못했습니다", "langAssembly": "어셈블리", "sendAsRaxMod": "RAX ID 수정자로 보내기", "usingAsmFromMsg": "{source}이(가) 보낸 메시지 {raxId}의 어셈블리를 사용 중입니다", "useOwnSnippet": "내 스니펫 사용", "useOwnSnippetOk": "저장한 스니펫을 다시 사용합니다.", "applyToRaxIds": "RAX ID에 적용", "asmInvalid": "이 어셈블리를 RAX ID에 적용할 수 없습니다: {error}", "sendAsRaxModNeedRecipient": "보내기 양식에 받는 사람을 먼저 입력하세요.", "sendAsRaxModEmpty": "어셈블리 스니펫이 비어 있습니다.", "noInstructions": "실행할 명령이 없습니다.", "changePassHeading": "암호 문구 변경", "changePassNote": "이 받은편지함의 모든 암호화된 메시지를 기존 암호 문구로 복호화한 다음 새 암호 문구로 다시 암호화합니다. 하나라도 복호화하지 못하면 아무 것도 변경되지 않습니다. 암호 문구는 서버나 localStorage에 저장되지 않습니다.", "oldPassphrase": "기존 암호 문구", "newPassphrase": "새 암호 문구", "confirmNewPassphrase": "새 암호 문구 확인", "changePass": "암호 문구 변경", "changePassNeedInbox": "먼저 받은편지함을 불러오세요.", "changePassNeedOld": "현재 암호 문구를 입력하세요.", "changePassNeedNew": "새 암호 문구를 입력하세요.", "changePassMismatch": "새 암호 문구와 확인 입력이 일치하지 않습니다.", "changePassNone": "이 받은편지함에 암호화된 메시지가 없습니다.", "changePassFail": "기존 암호 문구로 메시지 {n}개를 복호화하지 못했습니다. 변경 사항은 없습니다.", "changePassChecking": "암호화된 메시지를 확인하는 중…", "changePassProgress": "{total}개 중 {done}개를 다시 암호화하는 중…", "changePassOk": "메시지 {n}개를 다시 암호화했습니다", "changePassServerFail": "다시 암호화한 메시지를 저장하지 못했습니다: {error}"}, "zh": {"title": "ASM · RAX 寄存器模拟器", "navInbox": "收件箱", "navFull": "完整版", "navRax": "RAX", "navAsm": "ASM", "langLabel": "语言", "sendHeading": "发送消息", "source": "发件人", "recipient": "收件人", "labelMeta": "标签（仅元数据，绝不执行）", "content": "内容", "charCount": "{n}/{max} 个字符 · 允许的发件人：{sources}", "send": "发送", "sentOk": "已发送给 {recipient} · RAX ID {raxId} · ID {id}", "encrypt": "加密此消息", "passphrase": "口令", "passphrasePh": "请输入口令", "phraseFrom": "从译文选取短语", "phraseNote": "这是从你保存的译文中建议的短语（请勿当作真正的密钥，请自行选择强口令）：{phrase}", "passStrongNote": "加密是可选的，密钥由你输入的口令派生。译文短语只是提示。电子表格不会用作密钥。请自行选择强口令。", "passRequired": "请输入口令以加密此消息。", "encFail": "加密失败。", "noTranslations": "未能加载译文，无法建议短语。", "readHeading": "打开收件箱", "userPh": "用户名，例如 user1", "load": "加载", "readNote": "点击一条消息，即可将其 Unix 时间戳加载到模拟器的 RAX。", "noMessages": "{user} 没有消息。", "fromSource": "来自 {source}", "raxIdCustom": "RAX ID（自定义）", "raxIdStored": "RAX ID", "idUuid": "ID（UUID）", "unixTs": "unix ts", "loadMsgTs": "加载消息时间", "loadMsgTsTitle": "将此消息的 Unix 时间戳以 mov rax, {ts} / shr rax, 2 加载到模拟器", "clickToLoadTitle": "点击可将此消息的 Unix 时间戳加载到 RAX", "locked": "加密消息 — 请输入口令并按下“解密”。", "decryptPass": "解密口令", "decrypt": "解密", "decryptNeedPass": "请输入口令以解密消息。", "decryptNone": "此收件箱中没有加密消息。", "decryptFail": "口令不正确，或无法解密该消息。", "decryptPartial": "部分消息无法解密。请检查口令。", "decryptOk": "已解密 {n} 条消息。", "decrypted": "已解密", "encryptedTag": "已加密", "raxXformHeading": "显示的 RAX ID", "raxXformNote": "此片段仅在浏览器中运行，并会预先将每条消息的 Unix 时间戳载入 RAX。结果会显示为“RAX ID（自定义）”。已存储的 RAX ID 和 UUID 不会改变。默认：shr rax, 2", "raxXformLabel": "汇编片段", "apply": "应用", "resetDefault": "恢复默认", "raxXformOk": "已应用。当前显示的 RAX ID 将使用此片段。", "raxXformReset": "已恢复默认：shr rax, 2", "simHeading": "x86-64 汇编模拟器", "simTag": "仅在浏览器中运行 · BigInt · 64 位", "run": "运行", "stepBtn": "单步", "resetBtn": "重置", "loadNowTs": "加载当前时间", "execLog": "执行日志", "simNote": "Intel 语法，每行一条指令，; 注释，label: 以及 jmp/jz/jnz/je/jne/jc/jnc（也包括 js/jns/jo/jno/jl/jle/jg/jge/ja/jae/jb/jbe），hlt。寄存器为 rax rbx rcx rdx rsi rdi 及其 32/16/8 位部分。立即数支持十进制、0x 十六进制、0b 二进制。不支持内存操作数。运行在 10000 步后停止。", "codeAria": "汇编源码（Intel 语法）", "regHeading": "寄存器层次", "flagsLabel": "标志：", "carry": "进位", "zero": "零", "sign": "符号", "overflow": "溢出", "stackLine": "栈（{n}，前为栈顶）：{items}", "stackEmpty": "空", "trShow": "译文（参考）", "trHide": "隐藏译文", "trNote": "这里仅供参考显示你保存的译文。消息内容不会被翻译。这些短语不用作加密密钥。", "trFilter": "语言对", "trAll": "全部语言对", "trSearch": "搜索", "trSearchPh": "搜索原文或译文", "trEmpty": "没有匹配的译文。", "trCount": "显示 {n} 条", "trLoadFail": "无法加载 translations.json", "langAssembly": "汇编", "sendAsRaxMod": "作为 RAX ID 修饰符发送", "usingAsmFromMsg": "正在使用 {source} 发送的消息 {raxId} 中的汇编", "useOwnSnippet": "改用我自己的片段", "useOwnSnippetOk": "已改回使用你保存的片段。", "applyToRaxIds": "应用到 RAX ID", "asmInvalid": "无法将此汇编应用到 RAX ID：{error}", "sendAsRaxModNeedRecipient": "请先在发送表单中填写收件人。", "sendAsRaxModEmpty": "汇编片段为空。", "noInstructions": "没有可运行的指令。", "changePassHeading": "更改口令", "changePassNote": "使用旧口令解密此收件箱中的每条加密消息，再用新口令重新加密。只要有一条无法解密，就不会做任何更改。口令不会保存在服务器或 localStorage 中。", "oldPassphrase": "旧口令", "newPassphrase": "新口令", "confirmNewPassphrase": "确认新口令", "changePass": "更改口令", "changePassNeedInbox": "请先加载收件箱。", "changePassNeedOld": "请输入当前口令。", "changePassNeedNew": "请输入新口令。", "changePassMismatch": "新口令与确认输入不一致。", "changePassNone": "此收件箱中没有加密消息。", "changePassFail": "有 {n} 条消息无法用旧口令解密。未做任何更改。", "changePassChecking": "正在检查加密消息…", "changePassProgress": "正在重新加密 {done}/{total}…", "changePassOk": "已重新加密 {n} 条消息", "changePassServerFail": "无法保存重新加密的消息：{error}"}};
+
+/*CRYPTO-BEGIN*/
+const MsgCrypto=(function(){
+  const ITERATIONS=150000;
+  const te=new TextEncoder(), td=new TextDecoder();
+  function b64enc(buf){
+    const u=buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+    let s=''; const n=0x8000;
+    for(let i=0;i<u.length;i+=n) s+=String.fromCharCode.apply(null, u.subarray(i,i+n));
+    return btoa(s);
+  }
+  function b64dec(s){
+    const bin=atob(s);
+    const u=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i);
+    return u;
+  }
+  async function derive(pass, salt){
+    const mat=await crypto.subtle.importKey('raw', te.encode(pass), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey(
+      {name:'PBKDF2', salt:salt, iterations:ITERATIONS, hash:'SHA-256'},
+      mat, {name:'AES-GCM', length:256}, false, ['encrypt','decrypt']);
+  }
+  function isEncrypted(c){
+    if(typeof c!=='string' || !c.startsWith('enc:v1:')) return false;
+    const p=c.split(':');
+    return !!(p.length===5 && p[0]==='enc' && p[1]==='v1' && p[2] && p[3] && p[4]);
+  }
+  async function encrypt(plain, pass){
+    const salt=crypto.getRandomValues(new Uint8Array(16));
+    const iv=crypto.getRandomValues(new Uint8Array(12));
+    const key=await derive(pass, salt);
+    const ct=await crypto.subtle.encrypt({name:'AES-GCM', iv:iv}, key, te.encode(plain));
+    return 'enc:v1:'+b64enc(salt)+':'+b64enc(iv)+':'+b64enc(ct);
+  }
+  async function decrypt(packed, pass){
+    if(!isEncrypted(packed)) throw new Error('not_encrypted');
+    const p=packed.split(':');
+    const salt=b64dec(p[2]), iv=b64dec(p[3]), ct=b64dec(p[4]);
+    const key=await derive(pass, salt);
+    const pt=await crypto.subtle.decrypt({name:'AES-GCM', iv:iv}, key, ct);
+    return td.decode(pt);
+  }
+  return {encrypt:encrypt, decrypt:decrypt, isEncrypted:isEncrypted, ITERATIONS:ITERATIONS};
+})();
+/*CRYPTO-END*/
+
+const $=id=>document.getElementById(id);
+const el=(t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e};
+function note(box,cls,text){box.textContent='';box.appendChild(el('div','msg '+cls,text))}
+const tsOf=m=>m.unixTs!=null?Number(m.unixTs):Math.floor(Date.parse(m.timestamp)/1000);
+let skew=0;const nowTs=()=>Math.floor((Date.now()+skew)/1000);
+const PLAIN_MAX=5000;
+const LANG_KEY='inbox-asm-lang';
+const XFORM_KEY='inbox-asm-rax-snippet';
+const DEFAULT_XFORM='shr rax, 2';
+const LANGS=['en','ja','ru','ko','zh'];
+let currentLang='en';
+let allowedSources='…';
+let trItems=[];
+let lastUser='';
+let lastMsgs=[];
+let selMsg=null;
+let xformProg=null;
+let xformSrc=DEFAULT_XFORM;
+let usingRemoteAsm=false;
+let remoteAsmMsg=null;
+let userChoseOwn=false;
+
+function t(key, vars){
+  const dict=I18N[currentLang]||I18N.en;
+  let s=(dict && dict[key]!=null)?dict[key]:(I18N.en[key]!=null?I18N.en[key]:key);
+  if(vars) s=s.replace(/\{(\w+)\}/g,(_,k)=>vars[k]!=null?String(vars[k]):'');
+  return s;
+}
+function normLang(v){
+  const x=String(v||'').toLowerCase().replace('_','-');
+  if(x==='jp') return 'ja';
+  if(x==='kr') return 'ko';
+  if(x==='cn'||x==='zh-cn'||x==='zh-hans'||x==='zh-sg') return 'zh';
+  if(LANGS.indexOf(x)>=0) return x;
+  return null;
+}
+function langFromUrl(){
+  try{return normLang(new URLSearchParams(location.search).get('lang'))}catch(e){return null}
+}
+function updateCharNote(){
+  $('cnote').textContent=t('charCount',{n:$('content').value.length, max:PLAIN_MAX, sources:allowedSources});
+}
+function applyI18n(){
+  document.documentElement.lang=currentLang==='zh'?'zh-CN':currentLang;
+  document.title=t('title');
+  document.querySelectorAll('[data-i18n]').forEach(n=>{n.textContent=t(n.getAttribute('data-i18n'))});
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(n=>{n.placeholder=t(n.getAttribute('data-i18n-placeholder'))});
+  document.querySelectorAll('[data-i18n-aria]').forEach(n=>{n.setAttribute('aria-label', t(n.getAttribute('data-i18n-aria')))});
+  $('lang').value=currentLang;
+  $('trtog').textContent=$('trpanel').hidden?t('trShow'):t('trHide');
+  updateCharNote();
+  if(trItems.length) fillPairs();
+  if(lastUser) renderList(lastMsgs);
+  if(typeof window.asmRelabel==='function') window.asmRelabel();
+  updateXformChrome();
+  if(!$('trpanel').hidden) renderTr();
+}
+function setLang(lang, persist){
+  currentLang=LANGS.indexOf(lang)>=0?lang:'en';
+  if(persist!==false){
+    try{localStorage.setItem(LANG_KEY, currentLang)}catch(e){}
+  }
+  applyI18n();
+}
+
+function tryCompileXform(src){
+  const prog=AsmSim.parse(src);
+  if(!prog.ins.length) throw new Error(t('noInstructions'));
+  const st=AsmSim.createState();
+  st.R.rax=1n;
+  const o=AsmSim.run(prog, st, AsmSim.STEP_LIMIT);
+  if(o.limitHit) throw new Error('Step limit of '+AsmSim.STEP_LIMIT+' reached — possible infinite loop.');
+  return prog;
+}
+function customRaxId(unixTs){
+  const ts=BigInt(unixTs)&AsmSim.mask(64);
+  if(!xformProg) return String(ts>>2n);
+  const st=AsmSim.createState();
+  st.R.rax=ts;
+  const o=AsmSim.run(xformProg, st, AsmSim.STEP_LIMIT);
+  if(o.limitHit) throw new Error('limit');
+  return String(st.R.rax);
+}
+function isAssemblyMsg(m){
+  return !!(m && String(m.language||'').toLowerCase()==='assembly');
+}
+function readableAssembly(m){
+  if(!isAssemblyMsg(m)) return null;
+  if(MsgCrypto.isEncrypted(m.content)) return (m._plain!=null)?String(m._plain):null;
+  return String(m.content);
+}
+function updateXformChrome(){
+  const from=$('xfrom'), useOwn=$('xuseown');
+  if(!from || !useOwn) return;
+  if(usingRemoteAsm && remoteAsmMsg){
+    from.hidden=false;
+    from.textContent=t('usingAsmFromMsg',{raxId:String(remoteAsmMsg.raxId||'n/a'), source:remoteAsmMsg.source||''});
+    useOwn.hidden=false;
+    $('xcode').readOnly=true;
+    $('xapply').disabled=true;
+    $('xreset').disabled=true;
+  }else{
+    from.hidden=true;
+    from.textContent='';
+    useOwn.hidden=true;
+    $('xcode').readOnly=false;
+    $('xapply').disabled=false;
+    $('xreset').disabled=false;
+  }
+}
+function applyXform(src, silentOk){
+  const prog=tryCompileXform(src);
+  xformProg=prog;
+  xformSrc=src;
+  usingRemoteAsm=false;
+  remoteAsmMsg=null;
+  try{localStorage.setItem(XFORM_KEY, src)}catch(e){}
+  updateXformChrome();
+  if(lastUser) renderList(lastMsgs);
+  if(!silentOk) note($('xmsg'),'ok', src.trim()===DEFAULT_XFORM?t('raxXformReset'):t('raxXformOk'));
+  return true;
+}
+function applyRemoteXform(src, msg, silentOk){
+  const prog=tryCompileXform(src);
+  xformProg=prog;
+  xformSrc=src;
+  usingRemoteAsm=true;
+  remoteAsmMsg=msg;
+  $('xcode').value=src;
+  updateXformChrome();
+  if(!silentOk) note($('xmsg'),'ok', t('usingAsmFromMsg',{raxId:String(msg.raxId||'n/a'), source:msg.source||''}));
+  if(lastUser) renderList(lastMsgs);
+  return true;
+}
+function restoreLocalXform(silentOk){
+  let saved=DEFAULT_XFORM;
+  try{saved=localStorage.getItem(XFORM_KEY)||DEFAULT_XFORM}catch(e){}
+  $('xcode').value=saved;
+  try{applyXform(saved, silentOk!==false)}catch(e){
+    $('xcode').value=DEFAULT_XFORM;
+    try{applyXform(DEFAULT_XFORM, true)}catch(e2){}
+    if(silentOk===false) note($('xmsg'),'err',e.message);
+  }
+}
+function adoptNewestAssembly(){
+  if(userChoseOwn) return;
+  let applied=false;
+  for(const m of lastMsgs){
+    if(!isAssemblyMsg(m)) continue;
+    const src=readableAssembly(m);
+    if(src==null) continue;
+    try{
+      applyRemoteXform(src, m, true);
+      applied=true;
+      break;
+    }catch(e){
+      m._asmErr=e.message;
+    }
+  }
+  if(!applied && usingRemoteAsm) restoreLocalXform(true);
+}
+
+function renderList(messages){
+  $('list').textContent='';
+  if(!messages.length){$('list').appendChild(el('li','empty',t('noMessages',{user:lastUser})));return}
+  const selectedId=selMsg && selMsg.id;
+  for(const m of messages){
+    const li=el('li','pick');
+    li.title=t('clickToLoadTitle');
+    const meta=el('div','meta'), right=el('span');
+    right.append(el('span','tag', m.language||'text'));
+    if(MsgCrypto.isEncrypted(m.content)){
+      right.append(document.createTextNode(' '));
+      right.append(el('span','tag', m._plain!=null?t('decrypted'):t('encryptedTag')));
+    }
+    const tm=el('time',null,' '+new Date(m.timestamp).toLocaleString());
+    tm.dateTime=m.timestamp; right.append(tm);
+    meta.append(el('span',null,t('fromSource',{source:m.source})), right);
+    const ids=el('dl','ids');
+    let custom='—';
+    try{custom=customRaxId(tsOf(m))}catch(e){custom='—'}
+    ids.append(
+      el('dt',null,t('raxIdCustom')), el('dd','rx',custom),
+      el('dt',null,t('raxIdStored')), el('dd',null,String(m.raxId||'n/a')),
+      el('dt',null,t('idUuid')), el('dd',null,String(m.id||'n/a')),
+      el('dt',null,t('unixTs')), el('dd',null,String(tsOf(m)))
+    );
+    let body;
+    const lockedEnc=MsgCrypto.isEncrypted(m.content) && m._plain==null;
+    if(lockedEnc){
+      if(m._decErr){
+        body=el('div','body lock err');
+        body.textContent=t('decryptFail');
+      }else{
+        body=el('div','body lock');
+        body.textContent=t('locked');
+      }
+    }else if(isAssemblyMsg(m)){
+      const code=readableAssembly(m);
+      body=el('pre','asmblock');
+      body.textContent=code!=null?code:String(m._plain!=null?m._plain:m.content);
+    }else if(MsgCrypto.isEncrypted(m.content) && m._plain!=null){
+      body=el('div','body lock ok');
+      body.textContent=String(m._plain);
+    }else{
+      body=el('div','body');
+      body.textContent=String(m.content);
+    }
+    const lb=el('button','lb',t('loadMsgTs')); lb.type='button';
+    lb.title=t('loadMsgTsTitle',{ts:tsOf(m)});
+    lb.addEventListener('click',ev=>{ev.stopPropagation();pick(li,m);loadProgramTs(tsOf(m),m)});
+    li.addEventListener('click',()=>{pick(li,m);window.asmSetRax(tsOf(m),m)});
+    li.append(meta,ids,body);
+    if(m._asmErr) li.appendChild(el('div','asmerr',t('asmInvalid',{error:m._asmErr})));
+    const asmSrc=readableAssembly(m);
+    if(asmSrc!=null){
+      const ab=el('button','lb',t('applyToRaxIds'));
+      ab.type='button';
+      ab.addEventListener('click',ev=>{
+        ev.stopPropagation();
+        pick(li,m);
+        try{
+          userChoseOwn=false;
+          delete m._asmErr;
+          applyRemoteXform(asmSrc,m,false);
+        }catch(e){
+          m._asmErr=e.message;
+          note($('xmsg'),'err',t('asmInvalid',{error:e.message}));
+          renderList(lastMsgs);
+        }
+      });
+      li.appendChild(ab);
+    }
+    li.appendChild(lb);
+    if(selectedId && m.id===selectedId){li.classList.add('sel');selMsg=m}
+    $('list').appendChild(li);
+  }
+}
+function pick(li,m){
+  document.querySelectorAll('#list li.sel').forEach(x=>x.classList.remove('sel'));
+  li.classList.add('sel'); selMsg=m;
+  $('ldmsg').disabled=false;
+  $('ldmsg').title=t('loadMsgTsTitle',{ts:tsOf(m)});
+}
+
+async function load(u){
+  $('lm').textContent=''; $('list').textContent='';
+  lastUser=u; lastMsgs=[]; selMsg=null; $('ldmsg').disabled=true;
+  try{
+    const r=await fetch('/messages/'+encodeURIComponent(u),{cache:'no-store'});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+    lastMsgs=j.messages||[];
+    userChoseOwn=false;
+    adoptNewestAssembly();
+    renderList(lastMsgs);
+  }catch(err){note($('lm'),'err',err.message)}
+}
+
+$('content').maxLength=PLAIN_MAX;
+$('content').addEventListener('input',updateCharNote);
+$('doenc').addEventListener('change',()=>{$('encbox').hidden=!$('doenc').checked});
+$('phraser').addEventListener('click',()=>{
+  if(!trItems.length){$('phrasenote').textContent=t('noTranslations');return}
+  const cands=trItems.map(x=>String(x.sourceText||'').trim()).filter(s=>s.length>=4 && s.length<=120);
+  const pool=cands.length?cands:trItems.map(x=>String(x.sourceText||'').trim()).filter(Boolean);
+  if(!pool.length){$('phrasenote').textContent=t('noTranslations');return}
+  const phrase=pool[Math.floor(Math.random()*pool.length)];
+  $('spass').value=phrase;
+  $('phrasenote').textContent=t('phraseNote',{phrase:phrase});
+});
+$('sf').addEventListener('submit',async e=>{
+  e.preventDefault(); $('sb').disabled=true; $('sm').textContent='';
+  try{
+    let content=$('content').value;
+    if($('doenc').checked){
+      const pass=$('spass').value;
+      if(!pass) throw new Error(t('passRequired'));
+      try{content=await MsgCrypto.encrypt(content, pass)}catch(err){throw new Error(t('encFail'))}
+    }
+    const body={source:$('source').value, recipient:$('recipient').value.trim(), content:content, language:$('language').value};
+    const r=await fetch('/message',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+    note($('sm'),'ok', t('sentOk',{recipient:body.recipient, raxId:j.message.raxId, id:j.message.id}));
+    $('content').value=''; updateCharNote();
+    if($('user').value.trim()===body.recipient) load(body.recipient);
+  }catch(err){note($('sm'),'err',err.message)}
+  finally{$('sb').disabled=false}
+});
+$('lf').addEventListener('submit',e=>{e.preventDefault(); const u=$('user').value.trim(); if(u) load(u)});
+$('decr').addEventListener('click',async ()=>{
+  const pass=$('rpass').value;
+  if(!pass){note($('lm'),'err',t('decryptNeedPass'));return}
+  const enc=lastMsgs.filter(m=>MsgCrypto.isEncrypted(m.content));
+  if(!enc.length){note($('lm'),'err',t('decryptNone'));return}
+  let ok=0, bad=0;
+  for(const m of enc){
+    try{m._plain=await MsgCrypto.decrypt(m.content, pass); m._decErr=false; ok++}
+    catch(e){m._plain=undefined; m._decErr=true; bad++}
+  }
+  adoptNewestAssembly();
+  renderList(lastMsgs);
+  if(ok && !bad) note($('lm'),'ok',t('decryptOk',{n:ok}));
+  else if(ok && bad) note($('lm'),'err',t('decryptPartial'));
+  else note($('lm'),'err',t('decryptFail'));
+});
+
+$('rekey').addEventListener('click', async ()=>{
+  const oldP=$('oldpass').value;
+  const newP=$('newpass').value;
+  const newP2=$('newpass2').value;
+  if(!lastUser){note($('lm'),'err',t('changePassNeedInbox'));return}
+  if(!oldP){note($('lm'),'err',t('changePassNeedOld'));return}
+  if(!newP){note($('lm'),'err',t('changePassNeedNew'));return}
+  if(newP!==newP2){note($('lm'),'err',t('changePassMismatch'));return}
+  const enc=lastMsgs.filter(m=>MsgCrypto.isEncrypted(m.content));
+  if(!enc.length){note($('lm'),'err',t('changePassNone'));return}
+  $('rekey').disabled=true;
+  try{
+    note($('lm'),'ok',t('changePassChecking'));
+    const plains=[];
+    let failed=0;
+    for(const m of enc){
+      try{plains.push({m, pt: await MsgCrypto.decrypt(m.content, oldP)})}
+      catch(e){failed++}
+    }
+    if(failed){note($('lm'),'err',t('changePassFail',{n:failed}));return}
+    const updates=[];
+    for(let i=0;i<plains.length;i++){
+      note($('lm'),'ok',t('changePassProgress',{done:i+1, total:plains.length}));
+      let content;
+      try{content=await MsgCrypto.encrypt(plains[i].pt, newP)}
+      catch(err){throw new Error(t('encFail'))}
+      updates.push({id:plains[i].m.id, content, pt:plains[i].pt, m:plains[i].m});
+    }
+    const r=await fetch('/messages/'+encodeURIComponent(lastUser)+'/rekey',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({updates:updates.map(u=>({id:u.id, content:u.content}))})
+    });
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+    for(const u of updates){u.m.content=u.content; u.m._plain=u.pt; u.m._decErr=false}
+    $('spass').value=newP;
+    $('doenc').checked=true;
+    $('encbox').hidden=false;
+    $('rpass').value=newP;
+    $('oldpass').value='';
+    $('newpass').value='';
+    $('newpass2').value='';
+    adoptNewestAssembly();
+    renderList(lastMsgs);
+    note($('lm'),'ok',t('changePassOk',{n:updates.length}));
+  }catch(err){note($('lm'),'err',t('changePassServerFail',{error:err.message}))}
+  finally{$('rekey').disabled=false}
+});
+$('xapply').addEventListener('click',()=>{
+  try{applyXform($('xcode').value)}catch(e){note($('xmsg'),'err',e.message)}
+});
+$('xreset').addEventListener('click',()=>{
+  $('xcode').value=DEFAULT_XFORM;
+  try{applyXform(DEFAULT_XFORM)}catch(e){note($('xmsg'),'err',e.message)}
+});
+$('xsend').addEventListener('click',async ()=>{
+  $('xsend').disabled=true;
+  try{
+    const recipient=$('recipient').value.trim();
+    const source=$('source').value.trim();
+    let content=$('xcode').value;
+    if(!recipient) throw new Error(t('sendAsRaxModNeedRecipient'));
+    if(!String(content).trim()) throw new Error(t('sendAsRaxModEmpty'));
+    try{tryCompileXform(content)}catch(e){throw new Error(t('asmInvalid',{error:e.message}))}
+    if($('doenc').checked){
+      const pass=$('spass').value;
+      if(!pass) throw new Error(t('passRequired'));
+      try{content=await MsgCrypto.encrypt(content, pass)}catch(err){throw new Error(t('encFail'))}
+    }
+    const body={source:source, recipient:recipient, content:content, language:'assembly'};
+    const r=await fetch('/message',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+    note($('xmsg'),'ok', t('sentOk',{recipient:body.recipient, raxId:j.message.raxId, id:j.message.id}));
+    if($('user').value.trim()===body.recipient) load(body.recipient);
+  }catch(err){note($('xmsg'),'err',err.message)}
+  finally{$('xsend').disabled=false}
+});
+$('xuseown').addEventListener('click',()=>{
+  userChoseOwn=true;
+  restoreLocalXform(true);
+  note($('xmsg'),'ok', t('useOwnSnippetOk'));
+});
+function fromHash(){
+  if(location.hash.length>1){
+    let u; try{u=decodeURIComponent(location.hash.slice(1))}catch(e){return}
+    $('user').value=u; if(!$('recipient').value)$('recipient').value=u; load(u);
+  }
+}
+window.addEventListener('hashchange',fromHash);
+$('lang').addEventListener('change',()=>setLang($('lang').value,true));
+
+function fillPairs(){
+  const sel=$('trpair'); sel.textContent='';
+  const opt0=el('option',null,t('trAll')); opt0.value='all'; sel.appendChild(opt0);
+  const seen={};
+  for(const it of trItems){
+    const k=it.sourceLanguage+' → '+it.targetLanguage;
+    if(seen[k]) continue; seen[k]=1;
+    const o=el('option',null,k); o.value=k; sel.appendChild(o);
+  }
+}
+function renderTr(){
+  const pair=$('trpair').value||'all';
+  const q=$('trq').value.trim().toLowerCase();
+  const list=$('trlist'); list.textContent='';
+  let n=0;
+  for(const it of trItems){
+    const k=it.sourceLanguage+' → '+it.targetLanguage;
+    if(pair!=='all' && k!==pair) continue;
+    if(q && !(String(it.sourceText).toLowerCase().includes(q) || String(it.translatedText).toLowerCase().includes(q))) continue;
+    n++;
+    const row=el('div','trrow');
+    row.append(el('div','trpair',k), el('div','trsrc',String(it.sourceText)), el('div','trdst',String(it.translatedText)));
+    list.appendChild(row);
+  }
+  $('trcount').textContent=n?t('trCount',{n:n}):t('trEmpty');
+}
+$('trtog').addEventListener('click',()=>{
+  $('trpanel').hidden=!$('trpanel').hidden;
+  $('trtog').textContent=$('trpanel').hidden?t('trShow'):t('trHide');
+  if(!$('trpanel').hidden) renderTr();
+});
+$('trpair').addEventListener('change',renderTr);
+$('trq').addEventListener('input',renderTr);
+
+fetch('/config').then(r=>r.json()).then(c=>{
+  allowedSources=c.anySource?'any':(c.allowedSources||[]).join(', ');
+  (c.suggestedSources||[]).forEach(x=>{const o=document.createElement('option');o.value=x;$('srclist').appendChild(o)});
+  if(!$('source').value && !c.anySource) $('source').value=(c.allowedSources&&c.allowedSources[0])||'';
+  updateCharNote();
+}).catch(()=>{});
+fetch('/rax/history?since='+(Math.floor(Date.now()/1000)+86400),{cache:'no-store'}).then(r=>r.json()).then(j=>{if(typeof j.now==='number')skew=j.now*1000-Date.now()+500}).catch(()=>{});
+fetch('/translations.json',{cache:'no-store'}).then(r=>{
+  if(!r.ok) throw new Error('http');
+  return r.json();
+}).then(j=>{
+  trItems=Array.isArray(j)?j:(j.items||[]);
+  fillPairs();
+  if(!$('trpanel').hidden) renderTr();
+}).catch(()=>{$('trcount').textContent=t('trLoadFail')});
+
+// ===================== Register hierarchy panel =====================
+const COLORS={64:'#db2777',32:'#7c3aed',16:'#2563eb',8:'#059669'};
+const TREE=[['rax','eax','ax','ah','al'],['rbx','ebx','bx','bh','bl'],['rcx','ecx','cx','ch','cl'],['rdx','edx','dx','dh','dl']];
+const views=[];
+function mkBox(name,top){const r=AsmSim.regInfo(name),box=el('div','rb'+(top?' top':''));box.style.setProperty('--c',COLORS[r.w]);
+ const row=el('div','rr'),h=el('div','rh'),nm=el('b',null,name.toUpperCase()),rng=el('span','rng','bits '+(r.off+r.w-1)+'–'+r.off+' · '+r.w+'-bit'),hx=el('code','hx'),dv=el('code','dv'),sub=el('div','sub');
+ h.append(nm,rng,hx,dv,sub);const g=el('div','bg'+(name.endsWith('h')?' ah':''));const cells=[];
+ for(let hi=r.off+r.w-1;hi>=r.off;hi-=8){const grp=el('div','grp'),bits=el('div','bits'),cap=el('div','cap');
+  for(let b=hi;b>hi-8;b--){const c=el('span','b','0');c.title=name.toUpperCase()+' bit '+(b-r.off)+' (= '+r.base.toUpperCase()+' bit '+b+')';bits.appendChild(c);cells.push(c)}
+  cap.append(el('span',null,String(hi)),el('span',null,String(hi-7)));grp.append(bits,cap);g.appendChild(grp)}
+ row.append(h,g);box.appendChild(row);views.push({name,r,hx,dv,sub,cells});return box}
+(function build(){const root=$('regs');
+ for(const [q,d,w,hb,lb] of TREE){const b64=mkBox(q,true),b32=mkBox(d),b16=mkBox(w),bh=mkBox(hb),bl=mkBox(lb);b16.append(bh,bl);b32.appendChild(b16);b64.appendChild(b32);root.appendChild(b64)}
+ for(const q of ['rsi','rdi']){const b=mkBox(q,true);root.appendChild(b);views[views.length-1].subs=q==='rsi'?['esi','si','sil']:['edi','di','dil']}})();
+let prevR=null, lastSt=null;
+function renderRegs(st){
+ lastSt=st;
+ for(const v of views){const val=AsmSim.read(st,v.r),bits=val.toString(2).padStart(v.r.w,'0');
+  const old=prevR?(prevR[v.r.base]>>BigInt(v.r.off))&AsmSim.mask(v.r.w):val,ob=old.toString(2).padStart(v.r.w,'0');
+  v.hx.textContent='hex '+AsmSim.hex(val,v.r.w);v.dv.textContent='dec '+val.toString()+(v.r.w>8||val>127n?'':'')+(val>>BigInt(v.r.w-1)?'  (signed '+(val-(1n<<BigInt(v.r.w)))+')':'');
+  if(v.subs)v.sub.textContent=v.subs.map(s=>s.toUpperCase()+'='+AsmSim.hex(AsmSim.read(st,AsmSim.regInfo(s)),AsmSim.regInfo(s).w)).join('  ');
+  v.cells.forEach((c,i)=>{c.textContent=bits[i];c.className='b'+(bits[i]==='1'?' one':'')+(bits[i]!==ob[i]?' chg':'')})}
+ const f=$('flags');f.textContent='';f.appendChild(el('span','small',t('flagsLabel')));
+ for(const [k,dkey] of [['CF','carry'],['ZF','zero'],['SF','sign'],['OF','overflow']]){const s=el('span','fl'+(st.F[k]?' on':''));s.append(k+'='+(+st.F[k]),el('small',null,t(dkey)));f.appendChild(s)}
+ const n=st.stack.length;
+ const items=n?st.stack.slice(-8).reverse().map(v=>v.toString()).join(', ')+(n>8?', …':''):t('stackEmpty');
+ $('stk').textContent=t('stackLine',{n:n, items:items});
+ prevR=Object.assign({},st.R)}
+
+// ===================== Assembly editor / runner =====================
+(function(){
+ const ta=$('code'),gut=$('gut'),bdi=$('bdi'),bd=$('bd'),log=$('log'),LOG_MAX=400;
+ let st=AsmSim.createState(),prog=null,dirty=true,curLine=0,errLine=0;
+ function progText(ts){return 'mov rax, '+ts+'    ; unix timestamp\nshr rax, 2    ; rax = ts >> 2 (RAX ID)\n'}
+ function paintLines(){const n=ta.value.split('\n').length,nx=(!dirty&&prog&&st.pc<prog.ins.length)?prog.ins[st.pc].line:0;
+  gut.textContent='';bdi.textContent='';
+  for(let i=1;i<=n;i++){const g=el('div',i===errLine?'err':i===curLine?'cur':i===nx?'nx':'',String(i)),b=el('div',i===errLine?'err':i===curLine?'cur':'');gut.appendChild(g);bdi.appendChild(b)}
+  sync()}
+ function sync(){gut.scrollTop=ta.scrollTop;bd.scrollTop=ta.scrollTop;bd.scrollLeft=ta.scrollLeft}
+ function addLog(parts){const d=el('div');for(const [c,txt] of parts)d.appendChild(el('span',c,txt));log.appendChild(d);while(log.childNodes.length>LOG_MAX)log.removeChild(log.firstChild);log.scrollTop=log.scrollHeight}
+ function logStep(r){addLog([['n','#'+st.steps+' L'+r.ins.line+'  '],['i',r.ins.text],[null,'  →  '],['r',r.res],['f','  ['+r.flags+']']])}
+ function showErr(e){errLine=e.line||0;note($('aerr'),'err',e.message);addLog([['e','✖ '+e.message]]);paintLines()}
+ function status(txt){$('status').textContent=txt}
+ function compile(){$('aerr').textContent='';errLine=0;try{prog=AsmSim.parse(ta.value);dirty=false;st.pc=0;return true}catch(e){prog=null;showErr(e);return false}}
+ function ensure(){if(dirty||!prog||st.pc>=prog.ins.length){if(!compile())return false;if(!prog.ins.length){status('No instructions to run.');return false}}return true}
+ function doStep(){if(!ensure())return;try{const r=AsmSim.step(prog,st);curLine=r.ins.line;logStep(r)}catch(e){curLine=0;showErr(e)}
+  finish()}
+ function doRun(){if(!ensure())return;let lines=0;
+  try{const o=AsmSim.run(prog,st,AsmSim.STEP_LIMIT,r=>{curLine=r.ins.line;if(++lines<=LOG_MAX)logStep(r)});
+   if(o.count>LOG_MAX)addLog([['f','… '+(o.count-LOG_MAX)+' more step(s) not logged']]);
+   if(o.limitHit){const e=new Error('Step limit of '+AsmSim.STEP_LIMIT+' reached at line '+(prog.ins[st.pc]?prog.ins[st.pc].line:'?')+' — possible infinite loop. Press Run to continue or Reset.');e.line=prog.ins[st.pc]?prog.ins[st.pc].line:0;showErr(e)}
+   else addLog([['x','✔ finished after '+o.count+' step(s) · rax = '+st.R.rax+' ('+AsmSim.hex(st.R.rax,64)+')']])}
+  catch(e){showErr(e)}finish()}
+ function finish(){renderRegs(st);paintLines();
+  status(prog?(st.pc>=prog.ins.length?'Finished · ':'Next: line '+prog.ins[st.pc].line+' · ')+'steps executed: '+st.steps+' · rax = '+st.R.rax:'')}
+ function doReset(){st=AsmSim.createState();prevR=null;log.textContent='';curLine=0;errLine=0;$('aerr').textContent='';dirty=true;if(compile())status('Reset: registers, flags and stack cleared · ready at line '+(prog.ins[0]?prog.ins[0].line:'–'));renderRegs(st);paintLines()}
+ function loadProgramTs(ts,m){ta.value=progText(ts);doReset();addLog([['x',m?'✉ loaded message ts '+ts+' (RAX ID '+m.raxId+', ID '+m.id+')':'⏱ loaded current ts '+ts]]);
+  $('asmcard').scrollIntoView({behavior:'smooth',block:'start'})}
+ window.loadProgramTs=loadProgramTs;
+ window.asmSetRax=function(ts,m){st.R.rax=BigInt(ts)&AsmSim.mask(64);if(!dirty&&prog)st.pc=0;curLine=0;
+  addLog([['x','✉ RAX ← '+ts+' (unix ts of message RAX ID '+m.raxId+' · ID '+m.id+') · press Step/Run to execute from line 1']]);
+  renderRegs(st);paintLines();status('RAX loaded from message · next run starts at line 1');$('regcard').scrollIntoView({behavior:'smooth',block:'start'})};
+ window.asmRelabel=function(){if(lastSt) renderRegs(lastSt)};
+ ta.addEventListener('input',()=>{dirty=true;curLine=0;errLine=0;paintLines()});
+ ta.addEventListener('scroll',sync);
+ ta.addEventListener('keydown',e=>{if(e.key==='Tab'){e.preventDefault();const s=ta.selectionStart;ta.setRangeText('    ',s,ta.selectionEnd,'end');ta.dispatchEvent(new Event('input'))}
+  if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();doRun()}});
+ $('run').addEventListener('click',doRun);$('step').addEventListener('click',doStep);$('reset').addEventListener('click',doReset);
+ $('ldnow').addEventListener('click',()=>loadProgramTs(nowTs()));
+ $('ldmsg').addEventListener('click',()=>{if(selMsg)loadProgramTs(tsOf(selMsg),selMsg)});
+ ta.value=progText(Math.floor(Date.now()/1000));doReset();doRun();
+})();
+
+(function init(){
+  const fromUrl=langFromUrl();
+  let stored=null;
+  try{stored=normLang(localStorage.getItem(LANG_KEY))}catch(e){}
+  setLang(fromUrl||stored||'en', !!fromUrl);
+  let saved=DEFAULT_XFORM;
+  try{saved=localStorage.getItem(XFORM_KEY)||DEFAULT_XFORM}catch(e){}
+  $('xcode').value=saved;
+  try{applyXform(saved,true)}catch(e){$('xcode').value=DEFAULT_XFORM; try{applyXform(DEFAULT_XFORM,true)}catch(e2){} note($('xmsg'),'err',e.message)}
+  fromHash();
+})();
+</script></body></html>

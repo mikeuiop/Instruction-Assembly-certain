@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inbox</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--fg:#1d2330;--mut:#6b7280;--acc:#2563eb;--err:#b91c1c;--ok:#15803d;--bd:#e5e7eb}
+*{box-sizing:border-box}body{margin:0;font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--fg)}
+header{background:#111827;color:#fff;padding:14px 18px}header h1{margin:0;font-size:1.2rem}header p{margin:2px 0 0;color:#9ca3af;font-size:.85rem}
+main{max-width:960px;margin:0 auto;padding:16px;display:grid;gap:16px;grid-template-columns:1fr}
+@media(min-width:800px){main{grid-template-columns:1fr 1.3fr}}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px}
+h2{margin:0 0 12px;font-size:1.05rem}label{display:block;font-size:.85rem;color:var(--mut);margin:10px 0 4px}
+input,textarea,select{width:100%;padding:10px;border:1px solid var(--bd);border-radius:8px;font:inherit;background:#fff}
+textarea{min-height:110px;resize:vertical}button{margin-top:12px;background:var(--acc);color:#fff;border:0;border-radius:8px;padding:10px 16px;font:inherit;cursor:pointer;width:100%}
+button:disabled{opacity:.6}.row{display:flex;gap:8px}.row input{flex:1}.row button{width:auto;margin-top:0}
+.note{font-size:.8rem;color:var(--mut);margin-top:6px}.msg{padding:10px 12px;border-radius:8px;margin-top:10px;font-size:.9rem}
+.msg.err{background:#fef2f2;color:var(--err);border:1px solid #fecaca}.msg.ok{background:#f0fdf4;color:var(--ok);border:1px solid #bbf7d0}
+ul{list-style:none;padding:0;margin:12px 0 0}li{border:1px solid var(--bd);border-radius:10px;padding:12px;margin-bottom:10px}
+.meta{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:.8rem;color:var(--mut)}
+.body{white-space:pre-wrap;word-break:break-word;margin-top:6px}.tag{background:#eef2ff;color:#3730a3;border-radius:999px;padding:1px 8px;font-size:.75rem}
+.empty{color:var(--mut);text-align:center;padding:20px}
+</style></head><body>
+<header><h1>📥 Inbox</h1><p>Send messages from any source and read any user's inbox.</p></header>
+<main>
+<section class="card"><h2>Send a message</h2>
+<form id="sf">
+<label for="source">Source</label><input id="source" name="source" list="srclist" placeholder="Any name, e.g. KI" maxlength="64" required><datalist id="srclist"></datalist>
+<label for="recipient">Recipient</label><input id="recipient" name="recipient" placeholder="user1" pattern="[A-Za-z0-9_\-]{1,64}" required>
+<label for="language">Label (metadata only, never executed)</label>
+<select id="language" name="language"><option>text</option><option>javascript</option><option>python</option><option>bash</option></select>
+<label for="content">Content</label><textarea id="content" name="content" maxlength="5000" required></textarea>
+<div class="note"><span id="cc">0</span>/<span id="max">5000</span> characters · Allowed sources: <span id="allowed">…</span></div>
+<button id="sb" type="submit">Send</button><div id="sm"></div></form></section>
+<section class="card"><h2>Read an inbox</h2>
+<form id="lf" class="row"><input id="user" placeholder="username, e.g. user1" required><button type="submit">Load</button></form>
+<div id="lm"></div><ul id="list"></ul></section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+function note(el,cls,text){el.innerHTML='';const d=document.createElement('div');d.className='msg '+cls;d.textContent=text;el.appendChild(d)}
+fetch('/config').then(r=>r.json()).then(c=>{$('allowed').textContent=c.anySource?'any':c.allowedSources.join(', ');(c.suggestedSources||[]).forEach(x=>{const o=document.createElement('option');o.value=x;$('srclist').appendChild(o)});$('max').textContent=c.maxContentLength;$('content').maxLength=c.maxContentLength;if(!$('source').value&&!c.anySource)$('source').value=c.allowedSources[0]||''}).catch(()=>{});
+$('content').addEventListener('input',e=>$('cc').textContent=e.target.value.length);
+$('sf').addEventListener('submit',async e=>{e.preventDefault();$('sb').disabled=true;
+ const body={source:$('source').value,recipient:$('recipient').value.trim(),content:$('content').value,language:$('language').value};
+ try{const r=await fetch('/message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(j.error||('HTTP '+r.status));note($('sm'),'ok','Sent to '+body.recipient+'.');$('content').value='';$('cc').textContent=0;
+  if($('user').value.trim()===body.recipient)load(body.recipient);}
+ catch(err){note($('sm'),'err',err.message)}finally{$('sb').disabled=false}});
+async function load(u){$('lm').innerHTML='';$('list').innerHTML='';
+ try{const r=await fetch('/messages/'+encodeURIComponent(u));const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||('HTTP '+r.status));
+  if(!j.messages.length){const li=document.createElement('li');li.className='empty';li.textContent='No messages for '+u+'.';$('list').appendChild(li);return}
+  for(const m of j.messages){const li=document.createElement('li');const meta=document.createElement('div');meta.className='meta';
+   const from=document.createElement('span');from.textContent='From '+m.source;const right=document.createElement('span');
+   const tag=document.createElement('span');tag.className='tag';tag.textContent=m.language||'text';
+   const t=document.createElement('time');t.dateTime=m.timestamp;t.textContent=' '+new Date(m.timestamp).toLocaleString();
+   right.append(tag,t);meta.append(from,right);const b=document.createElement('div');b.className='body';b.textContent=m.content;li.append(meta,b);$('list').appendChild(li)}}
+ catch(err){note($('lm'),'err',err.message)}}
+$('lf').addEventListener('submit',e=>{e.preventDefault();load($('user').value.trim())});
+</script></body></html>

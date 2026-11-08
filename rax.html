@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RAX</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--fg:#1d2330;--mut:#6b7280;--acc:#2563eb;--bd:#e5e7eb}
+*{box-sizing:border-box}body{margin:0;font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--fg)}
+main{max-width:1080px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px;min-width:0}
+h1{margin:0 0 12px;font-size:1.1rem}
+.ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.ctl select{min-width:0;max-width:100%;flex:1 1 200px;padding:6px 8px;border:1px solid var(--bd);border-radius:8px;font:inherit;font-size:.85rem;background:#fff}
+.ctl button{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:6px 14px;font:inherit;font-size:.85rem;cursor:pointer}
+.src{font-size:.8rem;color:var(--mut);font-family:ui-monospace,Menlo,Consolas,monospace}
+pre.code{margin:0 0 10px;padding:8px 10px;background:#111827;color:#e5e7eb;border-radius:6px;font:13px/1.5 ui-monospace,Menlo,Consolas,monospace;overflow-x:auto}pre.code .k{color:#93c5fd}pre.code .n{color:#fcd34d}
+.xs{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%;padding-bottom:4px}
+.xin{position:relative;width:max-content;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px}
+.xr{display:flex;align-items:stretch;white-space:nowrap}.xl{width:4px;flex:none}
+.xg{display:flex;flex:none;margin-right:6px}.xg:last-of-type{margin-right:0}.xb{width:12px;flex:none;text-align:center;overflow:hidden}
+.bits .xb{height:20px;line-height:18px;border:1px solid #d1d5db;border-left-width:0;background:#fff}.bits .xg .xb:first-child{border-left-width:1px}
+.bits .xb.one{background:#dbeafe;color:#1e3a8a;font-weight:700}
+.bits .xb.zin{background:#bbf7d0;color:#166534;outline:2px solid #16a34a;outline-offset:-2px;font-weight:700}.bits .xb.zold{background:#ecfdf5;color:#16a34a}
+.bits .xb.out{outline:2px dashed #dc2626;outline-offset:-2px}
+.hd .xb{color:#9ca3af;font-size:8px;height:14px;line-height:14px}
+.hb .xg{justify-content:center;color:var(--mut);font-size:10px;height:16px;border-bottom:1px solid #e5e7eb}
+.dmp{flex:none;width:150px;margin-left:12px;display:flex;align-items:center;gap:6px;color:var(--mut)}
+.dh{flex:none;width:150px;margin-left:12px;display:flex;gap:6px;color:var(--mut);font-size:10px;align-items:flex-end}.dh span:first-child,.dmp .cfw{width:46px;flex:none}
+.cell{display:inline-block;width:16px;height:22px;line-height:18px;text-align:center;font-weight:700;font-size:13px;border:2px solid #dc2626;background:#fee2e2;color:#991b1b;border-radius:3px;margin-right:1px}
+.cell.old{border-style:dashed;background:#fff1f2;color:#b91c1c;font-weight:600}.cell.none{border:2px dashed #d1d5db;background:#f9fafb;color:#9ca3af}
+.meta2{display:flex;flex-wrap:wrap;gap:2px 14px;margin:10px 0 3px 4px;font-size:11px}.meta2 span{background:#fff;position:relative;z-index:1;padding-right:2px}
+.meta2 b{color:var(--acc)}.meta2 .st{color:var(--mut)}.meta2 .fin{color:#15803d;font-weight:700}.meta2 .dv{color:#991b1b}
+.ruler{position:relative;height:36px;margin-top:6px}
+.brk{position:absolute;height:16px;border:2px solid var(--c);border-top:0;border-radius:0 0 4px 4px}
+.brk span{position:absolute;left:50%;top:15px;transform:translateX(-50%);color:var(--c);font-weight:700;font-size:11px;background:#fff;padding:0 4px;white-space:nowrap}
+.vline{position:absolute;top:16px;width:0;border-left:2px dashed var(--c);opacity:.55;pointer-events:none}
+
+:root{--bg:#f4f5f7;--card:#fff;--fg:#1d2330;--mut:#6b7280;--acc:#2563eb;--err:#b91c1c;--ok:#15803d;--bd:#e5e7eb}
+h2{margin:0 0 12px;font-size:1.05rem}label{display:block;font-size:.85rem;color:var(--mut);margin:10px 0 4px}
+input,textarea,select{width:100%;padding:10px;border:1px solid var(--bd);border-radius:8px;font:inherit;background:#fff}
+textarea{min-height:110px;resize:vertical}button{margin-top:12px;background:var(--acc);color:#fff;border:0;border-radius:8px;padding:10px 16px;font:inherit;cursor:pointer;width:100%}
+button:disabled{opacity:.6}.row{display:flex;gap:8px}.row input{flex:1}.row button{width:auto;margin-top:0}
+.note{font-size:.8rem;color:var(--mut);margin-top:6px}.msg{padding:10px 12px;border-radius:8px;margin-top:10px;font-size:.9rem}
+.msg.err{background:#fef2f2;color:var(--err);border:1px solid #fecaca}.msg.ok{background:#f0fdf4;color:var(--ok);border:1px solid #bbf7d0}
+ul{list-style:none;padding:0;margin:12px 0 0}li{border:1px solid var(--bd);border-radius:10px;padding:12px;margin-bottom:10px}
+.meta{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:.8rem;color:var(--mut)}
+.body{white-space:pre-wrap;word-break:break-word;margin-top:6px}.tag{background:#eef2ff;color:#3730a3;border-radius:999px;padding:1px 8px;font-size:.75rem}
+.empty{color:var(--mut);text-align:center;padding:20px}
+.inb{display:grid;gap:16px;grid-template-columns:1fr;margin-bottom:16px}@media(min-width:800px){.inb{grid-template-columns:minmax(0,1fr) minmax(0,1.3fr)}}
+li.pick{cursor:pointer}li.pick:hover{border-color:#93c5fd}li.sel{border-color:var(--acc);box-shadow:0 0 0 2px #2563eb33}
+.rid{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;margin:4px 0;color:var(--mut);word-break:break-all}.rid a{color:var(--acc);cursor:pointer;text-decoration:underline}
+.ctl button{width:auto;margin:0}
+</style></head><body>
+<main><div class="inb">
+<section class="card"><h2>Send a message</h2>
+<form id="sf">
+<label for="source">Source</label><input id="source" name="source" placeholder="KI" required>
+<label for="recipient">Recipient</label><input id="recipient" name="recipient" placeholder="user1" pattern="[A-Za-z0-9_\-]{1,64}" required>
+<label for="language">Label (metadata only, never executed)</label>
+<select id="language" name="language"><option>text</option><option>javascript</option><option>python</option><option>bash</option></select>
+<label for="content">Content</label><textarea id="content" name="content" maxlength="5000" required></textarea>
+<div class="note"><span id="cc">0</span>/<span id="max">5000</span> characters · Allowed sources: <span id="allowed">…</span></div>
+<button id="sb" type="submit">Send</button><div id="sm"></div></form></section>
+<section class="card"><h2>Read an inbox</h2>
+<form id="lf" class="row"><input id="user" placeholder="username, e.g. user1" required><button type="submit">Load</button></form>
+<div id="lm"></div><ul id="list"></ul></section>
+</div>
+<section class="card" id="raxcard"><h1>RAX</h1>
+<div class="ctl"><select id="xsel" aria-label="timestamp"><option value="live">live: now</option></select><button type="button" id="xpause">⏸ Pause</button><span class="src" id="xsrc"></span></div>
+<pre class="code" id="xcode"></pre>
+<div class="xs"><div class="xin" id="xgrid"></div></div>
+</section></main>
+<script>
+
+const $=id=>document.getElementById(id);
+function note(el,cls,text){el.innerHTML='';const d=document.createElement('div');d.className='msg '+cls;d.textContent=text;el.appendChild(d)}
+fetch('/config').then(r=>r.json()).then(c=>{$('allowed').textContent=c.allowedSources.join(', ');$('max').textContent=c.maxContentLength;$('content').maxLength=c.maxContentLength;if(!$('source').value)$('source').value=c.allowedSources[0]||''}).catch(()=>{});
+$('content').addEventListener('input',e=>$('cc').textContent=e.target.value.length);
+$('sf').addEventListener('submit',async e=>{e.preventDefault();$('sb').disabled=true;
+ const body={source:$('source').value,recipient:$('recipient').value.trim(),content:$('content').value,language:$('language').value};
+ try{const r=await fetch('/message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(j.error||('HTTP '+r.status));note($('sm'),'ok','Sent to '+body.recipient+'.');$('content').value='';$('cc').textContent=0;
+  if($('user').value.trim()===body.recipient)load(body.recipient);if(window.raxRefresh)window.raxRefresh();}
+ catch(err){note($('sm'),'err',err.message)}finally{$('sb').disabled=false}});
+async function load(u){$('lm').innerHTML='';$('list').innerHTML='';
+ try{const r=await fetch('/messages/'+encodeURIComponent(u));const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||('HTTP '+r.status));
+  if(!j.messages.length){const li=document.createElement('li');li.className='empty';li.textContent='No messages for '+u+'.';$('list').appendChild(li);return}
+  for(const m of j.messages){const li=document.createElement('li');const meta=document.createElement('div');meta.className='meta';
+   const from=document.createElement('span');from.textContent='From '+m.source;const right=document.createElement('span');
+   const tag=document.createElement('span');tag.className='tag';tag.textContent=m.language||'text';
+   const t=document.createElement('time');t.dateTime=m.timestamp;t.textContent=' '+new Date(m.timestamp).toLocaleString();
+   right.append(tag,t);meta.append(from,right);const b=document.createElement('div');b.className='body';b.textContent=m.content;const rid=document.createElement('div');rid.className='rid';const a=document.createElement('a');a.textContent=m.raxId||'n/a';rid.append('RAX ID ',a);li.className='pick';li.title='load timestamp into RAX grid';li.addEventListener('click',()=>{document.querySelectorAll('#list li.sel').forEach(x=>x.classList.remove('sel'));li.classList.add('sel');if(window.raxShowMessage)window.raxShowMessage(m)});li.append(meta,rid,b);$('list').appendChild(li)}}
+ catch(err){note($('lm'),'err',err.message)}}
+$('lf').addEventListener('submit',e=>{e.preventDefault();load($('user').value.trim())});
+function fromHash(){if(location.hash.length>1){let u;try{u=decodeURIComponent(location.hash.slice(1))}catch(e){return}$('user').value=u;load(u)}}
+window.addEventListener('hashchange',fromHash);
+(function(){
+ const $=id=>document.getElementById(id);
+ const CW=12,GAP=6,LW=4,grid=$('xgrid'),sel=$('xsel'),pb=$('xpause');
+ const REGS=[{w:64,n:'RAX',c:'#db2777'}];
+ const xOf=b=>{const i=63-b;return LW+i*CW+Math.floor(i/8)*GAP};
+ const el=(t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e};
+ let skew=0,paused=false,mode='live',events=[],lastTs=null,custom=null;
+ const now=()=>Math.floor((Date.now()+skew)/1000);
+ const tsOf=e=>e.unixTs!=null?Number(e.unixTs):Math.floor(Date.parse(e.timestamp)/1000);
+ function row(cls,cell){const r=el('div','xr '+cls);r.appendChild(el('span','xl'));for(let g=0;g<8;g++){const G=el('span','xg');for(let k=0;k<8;k++)G.appendChild(cell(63-(g*8+k)));r.appendChild(G)}return r}
+ const hb=el('div','xr hb');hb.appendChild(el('span','xl'));
+ for(let g=0;g<8;g++){const G=el('span','xg','byte '+(7-g)+' · '+(63-g*8)+'..'+(56-g*8));G.style.width=(8*CW)+'px';hb.appendChild(G)}
+ const dh=el('span','dh');dh.append(el('span',null,'CF'),el('span',null,'dump'));hb.appendChild(dh);
+ grid.append(hb,row('hd',b=>el('span','xb',String(b))));
+ const steps=[0,1,2].map(n=>{const m=el('div','meta2');const r=row('bits',b=>{const c=el('span','xb','0');c.dataset.b=b;return c});
+  const d=el('span','dmp'),cfw=el('span','cfw'),dw=el('span');d.append(cfw,dw);r.appendChild(d);grid.append(m,r);
+  return{n,m,cells:[...r.querySelectorAll('.xb')],cfw,dw}});
+ const ruler=el('div','ruler');
+ REGS.forEach((g,i)=>{const bk=el('div','brk'),l=xOf(g.w-1)-1,rr=xOf(0)+CW+1;bk.style.cssText='--c:'+g.c+';left:'+l+'px;width:'+(rr-l)+'px;top:'+(i*22)+'px';
+  bk.appendChild(el('span',null,String(g.w).padStart(2,'0')+' '+g.n+' 0-'+(g.w-1)));ruler.appendChild(bk)});
+ grid.appendChild(ruler);
+ REGS.forEach((g,i)=>{const v=el('div','vline');v.style.cssText='--c:'+g.c+';left:'+(xOf(g.w-1)-1)+'px;bottom:'+(36-6)+'px';grid.appendChild(v)});
+ const hx=v=>'0x'+v.toString(16).toUpperCase().padStart(16,'0');
+ function cells(bits,cls){const f=document.createDocumentFragment();[...bits].forEach((b,i)=>f.appendChild(el('span','cell'+(cls?cls(i):''),b)));return f}
+ function render(ts){const T=BigInt(ts),c=$('xcode');c.textContent='';
+  c.append(el('span','k','mov'),' rax, ',el('span','n',T.toString()),'\n',el('span','k','shr'),' rax, ',el('span','n','2'));
+  steps.forEach(s=>{const n=BigInt(s.n),v=T>>n,bits=v.toString(2).padStart(64,'0');
+   const dump=s.n?(T&((1n<<n)-1n)).toString(2).padStart(s.n,'0'):'';
+   s.m.textContent='';
+   s.m.append(el('span','st','step '+s.n+' · '+['mov rax, ts','shr rax, 1','shr rax, 2'][s.n]),el('span',null,'÷'+(1<<s.n)));
+   const d=el('span');d.append('dec ',el('b',null,v.toString()));const h=el('span');h.append('hex ',el('b',null,hx(v)));s.m.append(d,h);
+   if(s.n){const dv=el('span','dv');dv.append('dump ',el('b',null,dump),' = '+parseInt(dump,2)+' (ts mod '+(1<<s.n)+')');s.m.append(dv)}
+   if(s.n===2)s.m.appendChild(el('span','fin','final'));
+   s.cells.forEach(cell=>{const b=+cell.dataset.b,bit=bits[63-b];cell.textContent=bit;let k='xb';
+    if(bit==='1')k+=' one';if(s.n>0&&b===63)k+=' zin';else if(s.n>0&&b>63-s.n)k+=' zold';if(s.n<2&&b===0)k+=' out';cell.className=k;cell.title='bit '+b+' = '+bit});
+   s.cfw.textContent='';s.dw.textContent='';
+   if(!s.n){s.cfw.appendChild(el('span','cell none','–'));s.dw.appendChild(el('span','cell none','–'))}
+   else{s.cfw.appendChild(cells(dump[0]));s.dw.appendChild(cells(dump,i=>i===0?'':' old'));s.cfw.title='CF: bit shifted out at step '+s.n;s.dw.title='bits shifted out so far (bit '+(s.n-1)+'..0)'}});
+  lastTs=ts}
+ function srcText(){if(mode==='live')return paused?'paused':'live';if(mode==='msg')return custom?custom.recipient+' · '+new Date(custom.timestamp).toLocaleString():'';const e=events[+mode];return e?e.recipient+' · '+new Date(e.timestamp).toLocaleString():''}
+ function tick(){if(mode==='live'&&!paused){const t=now();if(t!==lastTs)render(t)}$('xsrc').textContent=srcText()}
+ function setLive(){mode='live';sel.value='live';paused=false;pb.textContent='⏸ Pause'}
+ pb.addEventListener('click',()=>{if(mode!=='live')setLive();else{paused=!paused;pb.textContent=paused?'▶ Resume':'⏸ Pause'}tick()});
+ sel.addEventListener('change',()=>{if(sel.value==='live'){setLive();render(now())}else{mode=sel.value;const e=events[+mode];if(e){render(tsOf(e));pb.textContent='▶ Live'}}tick()});
+ async function loadEvents(){try{const r=await fetch('/rax/history',{cache:'no-store'});if(!r.ok)return;const j=await r.json();
+  if(typeof j.now==='number')skew=j.now*1000-Date.now()+500;
+  const keepId=mode!=='live'&&mode!=='msg'&&events[+mode]?events[+mode].id:null;
+  events=(j.events||[]).filter(e=>e.type==='message').slice().sort((a,b)=>tsOf(b)-tsOf(a));
+  sel.textContent='';sel.appendChild(new Option('live: now','live'));
+  events.forEach((e,i)=>sel.appendChild(new Option(new Date(tsOf(e)*1000).toLocaleString()+' · '+tsOf(e)+' · '+e.recipient,String(i))));
+  if(mode==='msg'){const i=custom?events.findIndex(e=>e.id===custom.id):-1;if(i>=0){mode=String(i);sel.value=mode}else sel.value='live'}else if(keepId){const i=events.findIndex(e=>e.id===keepId);if(i>=0){mode=String(i);sel.value=mode}else setLive()}else sel.value='live'}catch(e){}}
+ window.raxRefresh=loadEvents;
+ window.raxShowMessage=function(m){const i=events.findIndex(e=>e.id===m.id);if(i>=0){mode=String(i);sel.value=mode}else{mode='msg';custom=m;sel.value='live'}render(tsOf(m));pb.textContent='▶ Live';tick();$('raxcard').scrollIntoView({behavior:'smooth',block:'start'})};
+ render(now());loadEvents();setInterval(loadEvents,30000);
+ (function loop(){tick();setTimeout(loop,1000-((Date.now()+skew)%1000)+20)})();
+})();
+fromHash();
+</script></body></html>
